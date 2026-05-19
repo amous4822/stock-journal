@@ -1,6 +1,7 @@
 // Auth.js sign-in page — renders the Google OAuth button.
 // This is a server component; the actual OAuth redirect is a server action.
-import { signIn } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { auth, signIn } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -10,7 +11,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-export default function SignInPage() {
+export default async function SignInPage() {
+  // Already authenticated — no need to see the sign-in screen again.
+  const session = await auth();
+  if (session?.user) redirect("/dashboard");
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center px-4">
       <Card className="w-full max-w-sm">
