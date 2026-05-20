@@ -7,6 +7,7 @@ import { ArrowUpRight, ArrowDownRight, TrendingUp } from "lucide-react"
 import type { Trade } from "@/lib/db/schema"
 import { Badge } from "@/components/ui/badge"
 import { cn, formatINR, formatDate } from "@/lib/utils"
+import { CloseTradeModal } from "./close-trade-modal"
 
 interface Props {
   trades: Trade[]
@@ -74,6 +75,7 @@ export function TradeList({ trades, activeStatus }: Props) {
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Date</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">P&amp;L</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -137,6 +139,17 @@ function TradeRow({ trade }: { trade: Trade }) {
         ) : (
           <span className="text-muted-foreground">—</span>
         )}
+      </td>
+      <td className="px-4 py-3 text-right">
+        <div className="flex items-center justify-end gap-2">
+          {trade.status === "open" && <CloseTradeModal tradeId={trade.id} />}
+          <Link
+            href={`/dashboard/trades/${trade.id}`}
+            className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+          >
+            View
+          </Link>
+        </div>
       </td>
     </tr>
   )

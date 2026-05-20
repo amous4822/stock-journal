@@ -19,8 +19,8 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"
 import { toDatetimeLocal } from "@/lib/utils"
-import { closeTradeFormSchema, type CloseTradeFormInput } from "../schemas"
-import { closeTrade } from "../actions"
+import { closeTradeFormSchema, type CloseTradeFormInput } from "./schemas"
+import { closeTrade } from "./actions"
 
 interface Props {
   tradeId: string
@@ -70,9 +70,9 @@ export function CloseTradeModal({ tradeId }: Props) {
 
   return (
     <>
-      <Button onClick={() => setOpen(true)} variant="outline">
-        <X className="mr-2 size-4" />
-        Close Trade
+      <Button onClick={() => setOpen(true)} variant="outline" size="sm">
+        <X className="mr-1.5 size-3.5" />
+        Close
       </Button>
 
       <Dialog open={open} onOpenChange={handleClose}>

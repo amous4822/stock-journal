@@ -3,6 +3,14 @@
 // Note: Zod v4 removed invalid_type_error — use chained validation for custom messages.
 import { z } from "zod"
 
+// HTML number inputs emit "" when left blank. z.coerce.number() converts "" → 0,
+// which then fails .positive(). Preprocess "" to undefined so optional fields
+// stay optional even when the user leaves them empty.
+const optionalPrice = z.preprocess(
+  (v) => (v === "" || v === undefined || v === null ? undefined : v),
+  z.coerce.number().positive("Must be greater than 0").optional()
+)
+
 export const createTradeSchema = z.object({
   symbol: z.string().min(1, "Symbol is required"),
   action: z.enum(["buy", "sell"], { error: "Choose buy or sell" }),
@@ -12,8 +20,8 @@ export const createTradeSchema = z.object({
   entryReasoning: z
     .string()
     .min(10, "Add at least 10 characters — the more detail, the better the AI tags"),
-  plannedTargetPrice: z.coerce.number().positive().nullable().optional(),
-  plannedStopLoss: z.coerce.number().positive().nullable().optional(),
+  plannedTargetPrice: optionalPrice,
+  plannedStopLoss: optionalPrice,
 })
 
 export type CreateTradeInput = z.infer<typeof createTradeSchema>
@@ -28,3 +36,8 @@ export const closeTradeSchema = z.object({
 })
 
 export type CloseTradeInput = z.infer<typeof closeTradeSchema>
+
+// Form-only schema — tradeId is injected in onSubmit from props, not from the form.
+// The server action still validates the full closeTradeSchema (with tradeId).
+export const closeTradeFormSchema = closeTradeSchema.omit({ tradeId: true })
+export type CloseTradeFormInput = z.infer<typeof closeTradeFormSchema>

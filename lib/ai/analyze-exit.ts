@@ -1,8 +1,7 @@
 // AI function: analyzes a trader's exit and classifies the reason + deviation.
 // A "deviation" is when the trader exited outside their stated plan (target/stop).
-// Uses gpt-4o-mini via Vercel AI SDK generateObject. Same retry/fallback pattern as analyzeEntry.
-import { generateObject } from "ai"
-import { openai } from "@ai-sdk/openai"
+// Uses Groq's function-calling API directly (bypasses AI SDK's json_schema, which
+// llama-3.3-70b-versatile doesn't support). Same retry/fallback pattern as analyzeEntry.
 import { z } from "zod"
 import { logger } from "@/lib/logger"
 
@@ -36,14 +35,71 @@ const FALLBACK: ExitAnalysis = {
   deviation_explanation: null,
 }
 
-const PROMPT = (
+const MODEL = "llama-3.3-70b-versatile"
+const API_URL = "https://api.groq.com/openai/v1/chat/completions"
+
+async function groqFunctionCall(
+  prompt: string,
+  schema: z.ZodTypeAny
+): Promise<unknown> {
+  const apiKey = process.env.GROQ_API_KEY
+  if (!apiKey) throw new Error("GROQ_API_KEY is not set")
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const schemaJson = JSON.stringify((schema as any).toJSONSchema?.() ?? schema)
+
+  const response = await fetch(API_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      messages: [{ role: "user", content: prompt }],
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "analyze_exit",
+            description: "Analyzes a trader's exit and classifies deviation from plan",
+            parameters: JSON.parse(schemaJson),
+          },
+        },
+      ],
+      tool_choice: { type: "function", function: { name: "analyze_exit" } },
+    }),
+  })
+
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(`Groq API error ${response.status}: ${text}`)
+  }
+
+  const data = await response.json() as {
+    choices: Array<{
+      message: {
+        tool_calls?: Array<{
+          function: { arguments: string }
+        }>
+      }
+    }>
+  }
+
+  const toolCall = data.choices[0]?.message?.tool_calls?.[0]
+  if (!toolCall) throw new Error("No tool call in Groq response")
+
+  return JSON.parse(toolCall.function.arguments)
+}
+
+function buildPrompt(
   entryReasoning: string,
   exitReasoning: string,
   plannedTarget: number | null,
   plannedStop: number | null,
   entryPrice: number,
   exitPrice: number
-) => {
+): string {
   const planSummary =
     plannedTarget || plannedStop
       ? `Their original plan: target ₹${plannedTarget ?? "none"}, stop ₹${plannedStop ?? "none"}.`
@@ -73,12 +129,9 @@ async function attempt(
   entryPrice: number,
   exitPrice: number
 ): Promise<ExitAnalysis> {
-  const { object } = await generateObject({
-    model: openai("gpt-4o-mini"),
-    schema: exitAnalysisSchema,
-    prompt: PROMPT(entryReasoning, exitReasoning, plannedTarget, plannedStop, entryPrice, exitPrice),
-  })
-  return object
+  const prompt = buildPrompt(entryReasoning, exitReasoning, plannedTarget, plannedStop, entryPrice, exitPrice)
+  const raw = await groqFunctionCall(prompt, exitAnalysisSchema)
+  return exitAnalysisSchema.parse(raw)
 }
 
 export async function analyzeExit(
