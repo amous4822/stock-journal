@@ -46,8 +46,6 @@ export function LogTradeModal({ floating }: Props) {
     defaultValues: {
       action: "buy",
       entryDate: toDatetimeLocal() as unknown as Date,
-      plannedTargetPrice: undefined,
-      plannedStopLoss: undefined,
     },
   })
 
@@ -223,18 +221,16 @@ export function LogTradeModal({ floating }: Props) {
               </p>
             </div>
 
-            {/* Target + Stop (optional) */}
+            {/* Target + Stop */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label htmlFor="plannedTargetPrice">
-                  Target Price (₹) <span className="text-muted-foreground">(optional)</span>
-                </Label>
+                <Label htmlFor="plannedTargetPrice">Target Price (₹)</Label>
                 <Input
                   id="plannedTargetPrice"
                   type="number"
                   min="0.01"
                   step="0.01"
-                  placeholder="2600.00"
+                  placeholder="₹2600 — your exit target"
                   {...register("plannedTargetPrice")}
                 />
                 {errors.plannedTargetPrice && (
@@ -242,15 +238,13 @@ export function LogTradeModal({ floating }: Props) {
                 )}
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="plannedStopLoss">
-                  Stop Loss (₹) <span className="text-muted-foreground">(optional)</span>
-                </Label>
+                <Label htmlFor="plannedStopLoss">Stop Loss (₹)</Label>
                 <Input
                   id="plannedStopLoss"
                   type="number"
                   min="0.01"
                   step="0.01"
-                  placeholder="2380.00"
+                  placeholder="₹2380 — your maximum loss"
                   {...register("plannedStopLoss")}
                 />
                 {errors.plannedStopLoss && (

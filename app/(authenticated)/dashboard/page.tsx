@@ -1,9 +1,9 @@
 // Dashboard home — summary stats + recent trades. Shadow Portfolio widget comes in Phase 3.
 import Link from "next/link"
-import { desc, eq } from "drizzle-orm"
+import { desc, eq, sum, sql } from "drizzle-orm"
 import { TrendingUp, TrendingDown, Activity } from "lucide-react"
 import { db } from "@/lib/db"
-import { trades } from "@/lib/db/schema"
+import { trades, shadowOutcomes } from "@/lib/db/schema"
 import { requireAuth } from "@/lib/auth"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -14,7 +14,7 @@ export default async function DashboardPage() {
   const session = await requireAuth()
   const userId = session.user.id
 
-  const [allTrades, recentTrades] = await Promise.all([
+  const [allTrades, recentTrades, shadowData] = await Promise.all([
     // Aggregate stats
     db.query.trades.findMany({
       where: eq(trades.userId, userId),
@@ -26,6 +26,16 @@ export default async function DashboardPage() {
       orderBy: [desc(trades.entryDate)],
       limit: 10,
     }),
+    // Shadow portfolio — sum of all shadow outcomes for this user's closed trades
+    db
+      .select({
+        totalShadowPnl: sql<string>`sum(${shadowOutcomes.shadowPnl}::numeric)`,
+        totalRealizedPnl: sql<string>`sum(${trades.realizedPnl}::numeric)`,
+        tradeCount: sql<string>`count(${shadowOutcomes.tradeId})`,
+      })
+      .from(shadowOutcomes)
+      .innerJoin(trades, eq(shadowOutcomes.tradeId, trades.id))
+      .where(eq(trades.userId, userId)),
   ])
 
   const closedTrades = allTrades.filter((t) => t.status === "closed" && t.realizedPnl != null)
@@ -33,6 +43,12 @@ export default async function DashboardPage() {
   const winCount = closedTrades.filter((t) => parseFloat(t.realizedPnl!) > 0).length
   const winRate = closedTrades.length > 0 ? (winCount / closedTrades.length) * 100 : null
   const openCount = allTrades.filter((t) => t.status === "open").length
+
+  const shadow = shadowData[0]
+  const shadowCount = shadow?.tradeCount ? parseInt(shadow.tradeCount) : 0
+  const totalShadowPnl = shadow?.totalShadowPnl ? parseFloat(shadow.totalShadowPnl) : 0
+  const totalRealizedPnl = shadow?.totalRealizedPnl ? parseFloat(shadow.totalRealizedPnl) : 0
+  const shadowDelta = totalRealizedPnl > 0 || totalShadowPnl > 0 ? totalShadowPnl - totalRealizedPnl : 0
 
   return (
     <div className="flex flex-col gap-6 p-4 sm:p-6">
@@ -77,18 +93,53 @@ export default async function DashboardPage() {
         />
       </div>
 
-      {/* Shadow Portfolio placeholder — Phase 3 */}
-      <Card className="border-dashed">
-        <CardHeader>
-          <CardTitle className="text-base">Shadow Portfolio</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Coming in Phase 3 — this will show what you would have made if you&apos;d
-            followed your own target and stop-loss rules.
-          </p>
-        </CardContent>
-      </Card>
+      {/* Shadow Portfolio */}
+      {shadowCount > 0 ? (
+        <Card className="border-green-200 dark:border-green-900">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">Shadow Portfolio</CardTitle>
+              <Badge variant="outline" className="text-xs">
+                {shadowCount} trade{shadowCount !== 1 ? "s" : ""}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="grid grid-cols-3 gap-4">
+            <div>
+              <p className="text-xs text-muted-foreground">Your Actual P&L</p>
+              <p className={cn("text-xl font-bold font-mono", totalRealizedPnl >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400")}>
+                {totalRealizedPnl >= 0 ? "+" : ""}{formatINR(totalRealizedPnl)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Shadow P&L</p>
+              <p className="text-xl font-bold font-mono text-muted-foreground">
+                {totalShadowPnl >= 0 ? "+" : ""}{formatINR(totalShadowPnl)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Difference</p>
+              <p className={cn("text-xl font-bold font-mono", shadowDelta >= 0 ? "text-amber-600 dark:text-amber-400" : "text-blue-600 dark:text-blue-400")}>
+                {shadowDelta >= 0 ? "+" : ""}{formatINR(shadowDelta)}
+              </p>
+              <p className="text-[10px] text-muted-foreground">
+                {shadowDelta >= 0 ? "cost of bias" : "saved by deviation"}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="border-dashed">
+          <CardHeader>
+            <CardTitle className="text-base">Shadow Portfolio</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              No deviations detected yet — shadow outcomes are computed when you close a trade that deviates from your plan.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Recent trades */}
       <div className="space-y-3">

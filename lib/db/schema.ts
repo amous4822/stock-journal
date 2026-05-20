@@ -124,8 +124,8 @@ export const trades = pgTable(
     exitReasoning: text("exit_reasoning"),
     primaryStrategy: primaryStrategyEnum("primary_strategy").notNull(),
     emotionalStateEntry: emotionalStateEnum("emotional_state_entry").notNull(),
-    plannedTargetPrice: numeric("planned_target_price", { precision: 10, scale: 2 }),
-    plannedStopLoss: numeric("planned_stop_loss", { precision: 10, scale: 2 }),
+    plannedTargetPrice: numeric("planned_target_price", { precision: 10, scale: 2 }).notNull(),
+    plannedStopLoss: numeric("planned_stop_loss", { precision: 10, scale: 2 }).notNull(),
     exitReason: exitReasonEnum("exit_reason"),
     emotionalStateExit: emotionalStateEnum("emotional_state_exit"),
     // Computed at close: (exit_price - entry_price) * quantity * direction

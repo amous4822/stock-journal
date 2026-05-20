@@ -44,3 +44,7 @@ next-env.d.ts
 CLAUDE.md
 SPEC.md
 CLAUDE_CODE_PROMPTS.md
+
+*/*/*.test.ts
+*/*.test.ts
+*.test.ts

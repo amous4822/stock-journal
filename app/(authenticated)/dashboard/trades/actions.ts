@@ -12,6 +12,8 @@ import { requireAuthForAction } from "@/lib/auth"
 import { logger } from "@/lib/logger"
 import { analyzeEntry } from "@/lib/ai/analyze-entry"
 import { analyzeExit } from "@/lib/ai/analyze-exit"
+import { computeShadow } from "@/lib/shadow/compute"
+import { shadowOutcomes } from "@/lib/db/schema"
 import { createTradeSchema, closeTradeSchema } from "./schemas"
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string }
@@ -63,8 +65,8 @@ export async function createTrade(input: unknown): Promise<Result<Trade>> {
         entryReasoning,
         primaryStrategy: analysis.primary_strategy,
         emotionalStateEntry: analysis.emotional_state,
-        plannedTargetPrice: plannedTargetPrice ? String(plannedTargetPrice) : null,
-        plannedStopLoss: plannedStopLoss ? String(plannedStopLoss) : null,
+        plannedTargetPrice: String(plannedTargetPrice),
+        plannedStopLoss: String(plannedStopLoss),
       })
       .returning()
 
@@ -155,8 +157,34 @@ export async function closeTrade(input: unknown): Promise<Result<Trade>> {
       isDeviation: analysis.is_deviation,
     })
 
-    // TODO: Phase 3 — if analysis.is_deviation, call computeShadow(tradeId) here
-    // Deferred because computeShadow depends on the mock price service (Phase 3)
+    // If AI detected deviation, compute the shadow outcome (what the trade
+    // should have earned if they'd followed their own plan) and persist it.
+    if (analysis.is_deviation) {
+      const shadow = await computeShadow({
+        trade: { ...existing, realizedPnl: String(realizedPnl.toFixed(2)) } as typeof existing,
+      })
+      if (shadow) {
+        await db
+          .insert(shadowOutcomes)
+          .values({
+            tradeId,
+            shadowExitPrice: String(shadow.shadowExitPrice),
+            shadowExitDate: shadow.shadowExitDate,
+            shadowPnl: String(shadow.shadowPnl),
+            pnlDelta: String(shadow.pnlDelta),
+          })
+          .onConflictDoUpdate({
+            target: shadowOutcomes.tradeId,
+            set: {
+              shadowExitPrice: String(shadow.shadowExitPrice),
+              shadowExitDate: shadow.shadowExitDate,
+              shadowPnl: String(shadow.shadowPnl),
+              pnlDelta: String(shadow.pnlDelta),
+              computedAt: new Date(),
+            },
+          })
+      }
+    }
 
     revalidatePath("/dashboard/trades")
     revalidatePath(`/dashboard/trades/${tradeId}`)
