@@ -27,31 +27,28 @@ function Tooltip({ ...props }: TooltipPrimitive.Root.Props) {
   const [hoverOpen, setHoverOpen] = useState(false)
   const [pinned, setPinned] = useState(false)
 
-  function handleOpenChange(open: boolean) {
-    setHoverOpen(open)
-    // Clear pin on mouse-leave so moving away is enough to close — no second click needed.
-    if (!open) setPinned(false)
-  }
-
   return (
     <TooltipPinContext.Provider value={{ setPinned }}>
       <TooltipPrimitive.Root
         data-slot="tooltip"
         {...props}
         open={hoverOpen || pinned}
-        onOpenChange={handleOpenChange}
+        onOpenChange={setHoverOpen}
       />
     </TooltipPinContext.Provider>
   )
 }
 
-function TooltipTrigger({ ...props }: TooltipPrimitive.Trigger.Props) {
+function TooltipTrigger({ onClick, onPointerLeave, ...props }: TooltipPrimitive.Trigger.Props) {
   const ctx = useContext(TooltipPinContext)
   return (
     <TooltipPrimitive.Trigger
       data-slot="tooltip-trigger"
-      onClick={() => ctx?.setPinned(true)}
       {...props}
+      // Pin open on click (for mobile where hover never fires).
+      onClick={(e) => { ctx?.setPinned(true); onClick?.(e) }}
+      // Clear pin when pointer leaves — mouse-away closes without a second click.
+      onPointerLeave={(e) => { ctx?.setPinned(false); onPointerLeave?.(e) }}
     />
   )
 }
