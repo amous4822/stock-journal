@@ -1,29 +1,22 @@
-// Server actions for trade CRUD — createTrade and closeTrade.
-// All actions: validate input → auth check → AI analysis → DB write → return discriminated union.
-// Never throws to the client. Logs at entry, exit, and on every error.
 "use server"
 
 import { revalidatePath } from "next/cache"
 import { eq, and } from "drizzle-orm"
 import { db } from "@/lib/db"
-import { trades } from "@/lib/db/schema"
+import { trades, shadowOutcomes } from "@/lib/db/schema"
 import type { Trade } from "@/lib/db/schema"
 import { requireAuthForAction } from "@/lib/auth"
 import { logger } from "@/lib/logger"
 import { analyzeEntry } from "@/lib/ai/analyze-entry"
 import { analyzeExit } from "@/lib/ai/analyze-exit"
 import { computeShadow } from "@/lib/shadow/compute"
-import { shadowOutcomes } from "@/lib/db/schema"
 import { createTradeSchema, closeTradeSchema } from "./schemas"
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string }
 
-// ── createTrade ───────────────────────────────────────────────────────────────
-
 export async function createTrade(input: unknown): Promise<Result<Trade>> {
   logger.info("action:createTrade:start")
 
-  // 1. Validate input
   const parsed = createTradeSchema.safeParse(input)
   if (!parsed.success) {
     const message = parsed.error.issues[0]?.message ?? "Invalid input"
@@ -31,28 +24,15 @@ export async function createTrade(input: unknown): Promise<Result<Trade>> {
     return { ok: false, error: message }
   }
 
-  // 2. Auth check — every action must verify session
   const authResult = await requireAuthForAction()
   if (!authResult.ok) return authResult
   const { userId } = authResult
 
   try {
-    const {
-      symbol,
-      action,
-      quantity,
-      entryPrice,
-      entryDate,
-      entryReasoning,
-      plannedTargetPrice,
-      plannedStopLoss,
-    } = parsed.data
+    const { symbol, action, quantity, entryPrice, entryDate, entryReasoning, plannedTargetPrice, plannedStopLoss } = parsed.data
 
-    // 3. AI tagging — runs in parallel with no user-blocking; falls back on failure
     const analysis = await analyzeEntry(entryReasoning)
 
-    // 4. Insert trade row
-    // Drizzle's numeric columns accept string or number — using String() for clarity
     const [trade] = await db
       .insert(trades)
       .values({
@@ -80,8 +60,6 @@ export async function createTrade(input: unknown): Promise<Result<Trade>> {
   }
 }
 
-// ── closeTrade ────────────────────────────────────────────────────────────────
-
 export async function closeTrade(input: unknown): Promise<Result<Trade>> {
   logger.info("action:closeTrade:start")
 
@@ -99,39 +77,20 @@ export async function closeTrade(input: unknown): Promise<Result<Trade>> {
   const { tradeId, exitPrice, exitDate, exitReasoning } = parsed.data
 
   try {
-    // Fetch the trade first — ensure it exists and belongs to this user
     const existing = await db.query.trades.findFirst({
       where: and(eq(trades.id, tradeId), eq(trades.userId, userId)),
     })
 
-    if (!existing) {
-      return { ok: false, error: "Trade not found." }
-    }
-    if (existing.status === "closed") {
-      return { ok: false, error: "Trade is already closed." }
-    }
+    if (!existing) return { ok: false, error: "Trade not found." }
+    if (existing.status === "closed") return { ok: false, error: "Trade is already closed." }
 
     const entryPrice = parseFloat(existing.entryPrice)
-    const plannedTarget = existing.plannedTargetPrice
-      ? parseFloat(existing.plannedTargetPrice)
-      : null
-    const plannedStop = existing.plannedStopLoss
-      ? parseFloat(existing.plannedStopLoss)
-      : null
+    const plannedTarget = existing.plannedTargetPrice ? parseFloat(existing.plannedTargetPrice) : null
+    const plannedStop = existing.plannedStopLoss ? parseFloat(existing.plannedStopLoss) : null
 
-    // AI exit analysis — determines exit reason, emotion, and deviation
-    const analysis = await analyzeExit(
-      existing.entryReasoning,
-      exitReasoning,
-      plannedTarget,
-      plannedStop,
-      entryPrice,
-      exitPrice
-    )
+    const analysis = await analyzeExit(existing.entryReasoning, exitReasoning, plannedTarget, plannedStop, entryPrice, exitPrice)
 
-    // Realized P&L:
-    //   Buy:  profit when price rises  → (exit - entry) * qty
-    //   Sell: profit when price falls  → (entry - exit) * qty
+    // Buy: profit when price rises; Sell: profit when price falls
     const direction = existing.action === "buy" ? 1 : -1
     const realizedPnl = (exitPrice - entryPrice) * existing.quantity * direction
 
@@ -151,14 +110,8 @@ export async function closeTrade(input: unknown): Promise<Result<Trade>> {
       .where(and(eq(trades.id, tradeId), eq(trades.userId, userId)))
       .returning()
 
-    logger.info("action:closeTrade:success", {
-      tradeId,
-      realizedPnl: realizedPnl.toFixed(2),
-      isDeviation: analysis.is_deviation,
-    })
+    logger.info("action:closeTrade:success", { tradeId, realizedPnl: realizedPnl.toFixed(2), isDeviation: analysis.is_deviation })
 
-    // If AI detected deviation, compute the shadow outcome (what the trade
-    // should have earned if they'd followed their own plan) and persist it.
     if (analysis.is_deviation) {
       const shadow = await computeShadow({
         trade: { ...existing, realizedPnl: String(realizedPnl.toFixed(2)) } as typeof existing,

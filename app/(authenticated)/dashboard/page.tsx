@@ -1,4 +1,3 @@
-// Dashboard home — summary stats + recent trades. Shadow Portfolio widget comes in Phase 3.
 import Link from "next/link"
 import { desc, eq, sum, sql } from "drizzle-orm"
 import { TrendingUp, TrendingDown, Activity, Info } from "lucide-react"

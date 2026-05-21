@@ -1,5 +1,3 @@
-// Auth.js sign-in page — renders the Google OAuth button.
-// This is a server component; the actual OAuth redirect is a server action.
 import { redirect } from "next/navigation";
 import { auth, signIn } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -26,7 +24,6 @@ export default async function SignInPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Auth.js server action — triggers the Google OAuth redirect */}
           <form
             action={async () => {
               "use server";
@@ -46,7 +43,6 @@ export default async function SignInPage() {
         </CardContent>
       </Card>
 
-      {/* Footer — required on every page */}
       <footer className="mt-8 text-center text-sm text-muted-foreground">
         <div className="flex gap-4 justify-center">
           <span>Built by Albin Joseph</span>

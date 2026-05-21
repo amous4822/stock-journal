@@ -1,5 +1,3 @@
-// Public landing page — the first thing a visitor sees before signing in.
-// Server component: no auth required, no client-side JS.
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";

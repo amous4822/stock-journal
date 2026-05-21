@@ -1,5 +1,4 @@
 "use server"
-
 import { and, eq, gte, lte } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { trades, biasReports } from "@/lib/db/schema"
@@ -14,7 +13,6 @@ import { revalidatePath } from "next/cache"
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string }
 
-// Monday of the current week (ISO week — week starts Monday)
 function currentWeekStart(): Date {
   const now = new Date()
   const day = now.getUTCDay() // 0=Sun, 1=Mon, ..., 6=Sat
@@ -25,7 +23,6 @@ function currentWeekStart(): Date {
   return monday
 }
 
-// End of week = Sunday 23:59:59
 function currentWeekEnd(weekStart: Date): Date {
   const end = new Date(weekStart)
   end.setUTCDate(weekStart.getUTCDate() + 6)
@@ -43,7 +40,6 @@ export async function computeBiasReport(): Promise<Result<BiasReport>> {
   const weekStart = currentWeekStart()
   const weekEnd = currentWeekEnd(weekStart)
 
-  // Rate limit: once per hour. If a report exists and was computed < 1h ago, return it.
   const existing = await db.query.biasReports.findFirst({
     where: and(
       eq(biasReports.userId, userId),
@@ -61,7 +57,6 @@ export async function computeBiasReport(): Promise<Result<BiasReport>> {
   }
 
   try {
-    // Fetch all closed trades for this week
     const closedTrades = await db.query.trades.findMany({
       where: and(
         eq(trades.userId, userId),

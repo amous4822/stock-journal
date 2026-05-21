@@ -1,7 +1,3 @@
-// AI function: analyzes a trader's exit and classifies the reason + deviation.
-// A "deviation" is when the trader exited outside their stated plan (target/stop).
-// Uses Groq's function-calling API directly (bypasses AI SDK's json_schema, which
-// llama-3.3-70b-versatile doesn't support). Same retry/fallback pattern as analyzeEntry.
 import { z } from "zod"
 import { logger } from "@/lib/logger"
 
@@ -21,7 +17,6 @@ export const exitAnalysisSchema = z.object({
     "anxiety",
     "confidence",
   ]),
-  // True when exit price diverges from the stated plan without rational reevaluation
   is_deviation: z.boolean(),
   deviation_explanation: z.string().nullable(),
 })

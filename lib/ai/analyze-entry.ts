@@ -1,25 +1,9 @@
-// AI function: analyzes a trader's entry reasoning and extracts structured tags.
-// Uses Groq's function-calling API directly (bypasses AI SDK's json_schema, which
-// llama-3.3-70b-versatile doesn't support). Has 1 retry with exponential backoff
-// and a safe fallback — never blocks the createTrade action.
 import { z } from "zod"
 import { logger } from "@/lib/logger"
 
 export const entryAnalysisSchema = z.object({
-  primary_strategy: z.enum([
-    "technical",
-    "fundamental",
-    "news",
-    "social_proof",
-    "other",
-  ]),
-  emotional_state: z.enum([
-    "calm",
-    "fomo",
-    "revenge",
-    "anxiety",
-    "confidence",
-  ]),
+  primary_strategy: z.enum(["technical", "fundamental", "news", "social_proof", "other"]),
+  emotional_state: z.enum(["calm", "fomo", "revenge", "anxiety", "confidence"]),
   planned_target_price: z.number().nullable(),
   planned_stop_loss: z.number().nullable(),
 })
@@ -36,11 +20,9 @@ const FALLBACK: EntryAnalysis = {
 const MODEL = "llama-3.3-70b-versatile"
 const API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
-// Groq function-calling call — returns the parsed object or throws.
-async function groqFunctionCall(
-  prompt: string,
-  schema: z.ZodTypeAny
-): Promise<unknown> {
+// Groq's llama-3.3-70b doesn't support AI SDK's json_schema mode, so we use
+// the function-calling API directly to get structured output.
+async function groqFunctionCall(prompt: string, schema: z.ZodTypeAny): Promise<unknown> {
   const apiKey = process.env.GROQ_API_KEY
   if (!apiKey) throw new Error("GROQ_API_KEY is not set")
 
@@ -49,19 +31,10 @@ async function groqFunctionCall(
 
   const response = await fetch(API_URL, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: MODEL,
-      messages: [
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-      // Groq function-calling via tool parameter
+      messages: [{ role: "user", content: prompt }],
       tools: [
         {
           type: "function",
@@ -72,7 +45,6 @@ async function groqFunctionCall(
           },
         },
       ],
-      // Force the model to call the function
       tool_choice: { type: "function", function: { name: "analyze_entry" } },
     }),
   })
@@ -83,18 +55,11 @@ async function groqFunctionCall(
   }
 
   const data = await response.json() as {
-    choices: Array<{
-      message: {
-        tool_calls?: Array<{
-          function: { arguments: string }
-        }>
-      }
-    }>
+    choices: Array<{ message: { tool_calls?: Array<{ function: { arguments: string } }> } }>
   }
 
   const toolCall = data.choices[0]?.message?.tool_calls?.[0]
   if (!toolCall) throw new Error("No tool call in Groq response")
-
   return JSON.parse(toolCall.function.arguments)
 }
 
@@ -123,9 +88,6 @@ export async function analyzeEntry(reasoning: string): Promise<EntryAnalysis> {
     return result
   } catch (firstError) {
     logger.warn("ai:analyzeEntry:retry", { error: String(firstError) })
-
-    // 1s backoff before retry — chosen to respect Groq rate limits without
-    // noticeably delaying the user (the trade saves optimistically in the UI)
     await new Promise((r) => setTimeout(r, 1000))
 
     try {
@@ -133,10 +95,7 @@ export async function analyzeEntry(reasoning: string): Promise<EntryAnalysis> {
       logger.info("ai:analyzeEntry:success_on_retry", { latencyMs: Date.now() - start })
       return result
     } catch (secondError) {
-      logger.error("ai:analyzeEntry:fallback_used", {
-        error: String(secondError),
-        latencyMs: Date.now() - start,
-      })
+      logger.error("ai:analyzeEntry:fallback_used", { error: String(secondError), latencyMs: Date.now() - start })
       return FALLBACK
     }
   }

@@ -1,6 +1,3 @@
-// Generates a 2-paragraph plain-English bias narrative from weekly bias stats.
-// Uses Groq chat completions (plain text, not function-calling — no schema needed).
-// Has 1 retry + fallback; never blocks the computeBiasReport action.
 import { logger } from "@/lib/logger"
 
 export interface BiasStats {

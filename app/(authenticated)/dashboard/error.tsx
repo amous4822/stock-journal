@@ -1,8 +1,4 @@
 "use client"
-
-// Dashboard-level error boundary. Catches runtime errors in any dashboard page
-// so a single broken page doesn't crash the whole app.
-// Next.js requires this to be a Client Component.
 import { useEffect } from "react"
 import { AlertTriangle, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
