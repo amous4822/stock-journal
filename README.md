@@ -1,6 +1,6 @@
 # AlphaJournal
 
-A trade journal for Indian retail traders that quantifies the financial cost of cognitive biases. Most retail investors underperform the Nifty 50 not because they pick bad stocks, but because they make predictable behavioral mistakes — holding losers too long, revenge trading after losses, chasing tips. AlphaJournal puts a rupee figure on each of those mistakes.
+A trade journal for Indian retail traders that outputs the financial cost of cognitive biases. Most retail investors underperform the Nifty 50 not because they pick bad stocks, but because they make predictable behavioural mistakes i.e. holding losers too long, revenge trading after losses, chasing tips. AlphaJournal puts a rupee figure for each of those mistakes.
 
 **[Live Demo →](https://stock-journal-mu.vercel.app)**
 
@@ -8,13 +8,23 @@ A trade journal for Indian retail traders that quantifies the financial cost of 
 
 ## Demo
 
-Sign in with any Google account to start journaling immediately. To see a pre-populated journal with all bias patterns visible, run the seed script against a local database:
+Sign in with any Google account to start journaling immediately. To see a pre-populated journal with all bias patterns visible, click the button on top right to load demo data to your account. The demo trades demonstrates the following aspects of the product -
 
-```bash
-pnpm seed
-```
+**Trades 1 + 4 + 7 — "Good behavior" baseline**
+RELIANCE (hit target), INFY (hit stop), BAJFINANCE (hit stop). These show the product working for disciplined traders — no deviation, Shadow Portfolio delta is small, bias report doesn't penalize them. 
 
-This creates a demo user (`demo@alphajournal.dev`) with 10 trades covering every bias scenario — winning trades, panic closes, revenge trading chains, FOMO entries, and open positions.
+**Trades 2 + 5 + 9 — The Shadow Portfolio showcase**
+TCS (panic exit before target), TATAMOTORS (panic exit before target), ASIANPAINT (anxiety exit before stop). These are the three is_deviation = true trades. Each one has a meaningful pnl_delta — the Shadow Portfolio shows exactly how much money the emotional exit cost.
+
+**Trades 3 + 8 — FOMO/social proof**
+HDFCBANK ("saw on Twitter"), ITC ("finfluencer on YouTube"). These feed the FOMO P&L card in the Bias Report showing that social proof driven trades underperform thesis driven ones. Two trades tagged social_proof gives the calculation enough data to show a meaningful comparison.
+
+**Trade 6 — Revenge trade**
+MARUTI, entered exactly 45 minutes after the TCS loss. This is the only trade that fires the Markov model. The entry reasoning explicitly says "just lost money on TCS" so the story is clear.
+
+**Trade 10 — Open position**
+ICICIBANK, still open. To shows the product looks for tracking live positions. The dashboard "open positions" counter shows 1. You can close it to see how the flow works.
+
 
 ---
 
@@ -27,10 +37,10 @@ This creates a demo user (`demo@alphajournal.dev`) with 10 trades covering every
 | Database | PostgreSQL on Neon | Serverless driver works in Next.js edge/serverless without connection pooling config |
 | ORM | Drizzle | SQL-close enough to reason about queries; migrations are plain SQL files you can audit |
 | Auth | Auth.js v5 | Google OAuth in ~30 lines; session propagated to all server components automatically |
-| AI | Groq (llama-3.3-70b) | Fast enough for live tagging on submit; function-calling API returns structured output |
-| Styling | Tailwind + shadcn/ui | Accessible, unstyled primitives I can customize without fighting a component library |
-| Validation | Zod v4 | Shared between server actions and client forms; schema is the documentation |
-| Price data | Yahoo Finance + mock fallback | Free, no API key required; mock data makes the app demable without network access |
+| AI | Groq (llama-3.3-70b) | Free for dev purposes. Fast enough for live tagging on submit. API returns structured output |
+| Styling | Tailwind + shadcn/ui | Quick setup and faster build time. Can focus more on functionality than UI |
+| Validation | Zod | Shared between server actions and client forms. Schema is the documentation |
+| Price data | Yahoo Finance + mock fallback | Free, no API key required. Mock data makes the app work without internet |
 
 ---
 
@@ -54,24 +64,6 @@ graph TD
 
 ---
 
-## Design decisions and tradeoffs
-
-**Server Actions over API routes.** Every mutation is a Server Action. This keeps the auth check co-located with the mutation, eliminates a REST layer, and lets TypeScript types cross the client-server boundary without code generation. The tradeoff is a hard coupling to Next.js — swapping frameworks means rewriting the mutation layer.
-
-**Groq instead of OpenAI.** Groq's `llama-3.3-70b` doesn't support the Vercel AI SDK's `json_schema` response format — it returns an error. I call the Groq function-calling API directly and validate with Zod. This gives the same structured output without the AI SDK abstraction, at the cost of a small amount of boilerplate. The upside: no OpenAI billing, and inference is fast enough that AI tagging doesn't delay form submission.
-
-**Disposition effect cost approximation.** The formula estimates how much extra a trader lost by holding losers longer than winners. Since we don't have intraday price paths, we approximate: `extra_cost = (loser_hold - avg_winner_hold) × |loss_per_hour|`. This is linear — real losses compound non-linearly — but it's directionally correct and computable from the data we have without a tick feed.
-
-**60-minute revenge trade window.** The Markov model uses a 60-minute lookback to classify revenge trades. This matches the "cooling off" default used by most Indian retail brokerages and is consistent with behavioral finance literature on hot-hand fallacy in trading. A configurable window would be better for swing traders, but adds product complexity for v1.
-
-**Yahoo Finance with silent fallback.** The Shadow Portfolio requires historical OHLC data. Yahoo Finance's unofficial API works without a key and covers NSE tickers via the `.NS` suffix. When it fails, we fall back to mock data and log a warning. This means shadow portfolio calculation degrades gracefully rather than blocking trade closes.
-
-**Database sessions over JWT.** Auth.js is configured with the Drizzle adapter so sessions live in Neon, not cookies. This means a session table query on every request, but makes session revocation instant (delete the row). For a trading app where account security matters, this is worth the extra query.
-
-**No client-side state library.** Server Components fetch data where needed. Client state is either form state (react-hook-form) or URL state (search params for trade list filters). There was no case for Zustand or Redux — adding either would be premature abstraction.
-
----
-
 ## Setup
 
 ```bash
@@ -88,9 +80,6 @@ cp .env.example .env
 
 # Push schema to database
 pnpm db:push
-
-# Seed demo data (optional, development only)
-pnpm seed
 
 # Start dev server
 pnpm dev
@@ -146,11 +135,9 @@ Three functions in `lib/ai/`, all using Groq's `llama-3.3-70b-versatile`:
 
 **`generateBiasNarrative(stats)`** — Called when the bias report is refreshed. Generates two paragraphs of plain-English coaching: what the biggest bias cost was this week, and one concrete action to take next week. Uses plain chat completions (free-form text, no function-calling needed).
 
-All three have 1 retry with 1-second backoff and a safe fallback. A Groq outage never blocks the trade action.
-
 ---
 
-## The math
+## The optimistc math involved - not tested enough to be proven. 
 
 ### Disposition effect
 
@@ -158,9 +145,9 @@ All three have 1 retry with 1-second backoff and a safe fallback. A Groq outage 
 ratio = avg_hold_losers_hours / avg_hold_winners_hours
 
 for each losing trade:
-  extra_hold  = max(0, loser_hold - avg_winner_hold)
+  extra_hold = max(0, loser_hold - avg_winner_hold)
   loss_per_hr = |realized_pnl| / loser_hold_hours
-  cost       += loss_per_hr × extra_hold
+  cost += loss_per_hr × extra_hold
 ```
 
 `ratio > 1` means the trader held losers longer than winners. `cost` is the estimated rupee cost of that extra time.
@@ -169,13 +156,13 @@ for each losing trade:
 
 ```
 sort trades by exit_date ascending
-baseline_winrate    = total_wins / total_trades
-revenge_trades      = trades where a loss occurred in the prior 60 minutes
+baseline_winrate = total_wins / total_trades
+revenge_trades = trades where a loss occurred in the prior 60 minutes
 conditional_winrate = wins_in_revenge / count_revenge
-penalty             = baseline_winrate - conditional_winrate
+penalty = baseline_winrate - conditional_winrate
 ```
 
-Requires ≥ 5 revenge trades for a meaningful result; shows "insufficient data" otherwise.
+Requires ≥ 5 revenge trades for a meaningful result, shows "insufficient data" otherwise.
 
 ### Shadow portfolio
 
@@ -183,10 +170,10 @@ Requires ≥ 5 revenge trades for a meaningful result; shows "insufficient data"
 walk daily OHLC bars from entry_date to exit_date:
   buy  trade: target hit when high ≥ target; stop hit when low ≤ stop
   sell trade: target hit when low ≤ target;  stop hit when high ≥ stop
-  if neither → shadow exits at latest close
+  if neither > shadow exits at latest close
 
 shadow_pnl = (shadow_exit_price - entry_price) × quantity × direction
-pnl_delta  = shadow_pnl - realized_pnl   # positive = left money on table
+pnl_delta = shadow_pnl - realized_pnl   # positive = left money in trade
 ```
 
 ---
@@ -203,11 +190,7 @@ GitHub Actions runs on every push and pull request to `master`: lint (`eslint`) 
 
 **Real-time intraday price feeds.** The current Yahoo Finance integration provides end-of-day OHLC. Most NSE retail traders make intraday trades, so the Shadow Portfolio simulation would be more accurate with tick-level data (Upstox WebSocket or NSE Bhavcopy). Only `lib/prices/fetch.ts` needs to change — the interface is stable.
 
-**Account Aggregator framework.** SEBI's AA framework lets users consent-share demat and trading data with third-party apps. When it matures for retail use, it would enable verified trade imports without broker-specific integrations.
-
 **Real-time revenge trade circuit breaker.** Currently the analysis is weekly. A more actionable version would push a notification within 5 minutes of detecting a revenge pattern — before the next entry, not after.
-
-**Multi-currency support.** INR is hardcoded throughout the bias math and formatting. International support requires currency normalization across every calculation.
 
 ---
 
