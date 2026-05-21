@@ -2,7 +2,7 @@
 
 A trade journal for Indian retail traders that outputs the financial cost of cognitive biases. Most retail investors underperform the Nifty 50 not because they pick bad stocks, but because they make predictable behavioural mistakes i.e. holding losers too long, revenge trading after losses, chasing tips. AlphaJournal puts a rupee figure for each of those mistakes.
 
-**[Live Demo →](https://stock-journal-mu.vercel.app)**
+**[Live Demo →](https://stock-journal-smoky.vercel.app)**
 
 ---
 
