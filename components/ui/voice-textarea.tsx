@@ -3,8 +3,8 @@
 // Web Speech API voice input wrapper for Textarea.
 // Appends transcript to existing text (doesn't replace it).
 // Gracefully hides the mic button if SpeechRecognition is unavailable (Firefox, some mobile).
-import { useRef, useState, useEffect } from "react"
-import { Mic, MicOff, Square } from "lucide-react"
+import { useRef, useState } from "react"
+import { Mic, Square } from "lucide-react"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 
@@ -56,15 +56,13 @@ declare global {
 
 export function VoiceTextarea({ value = "", onValueChange, rows = 3, className, ...props }: Props) {
   const [isListening, setIsListening] = useState(false)
-  const [isSupported, setIsSupported] = useState(false)
+  // Lazy initialisation runs once on mount (client-only); avoids a setState-in-effect.
+  const [isSupported] = useState<boolean>(
+    () => typeof window !== "undefined" && !!(window.SpeechRecognition ?? window.webkitSpeechRecognition)
+  )
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
   // Captures interim results so they're not duplicated on commit
   const interimRef = useRef("")
-
-  useEffect(() => {
-    const SR = window.SpeechRecognition ?? window.webkitSpeechRecognition
-    setIsSupported(!!SR)
-  }, [])
 
   function startListening() {
     const SR = window.SpeechRecognition ?? window.webkitSpeechRecognition

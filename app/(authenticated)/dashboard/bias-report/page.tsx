@@ -1,5 +1,5 @@
 import { eq, and } from "drizzle-orm"
-import { Brain, RefreshCw, TrendingDown, Zap, Users } from "lucide-react"
+import { Brain, TrendingDown, Zap, Users } from "lucide-react"
 import { db } from "@/lib/db"
 import { biasReports } from "@/lib/db/schema"
 import { requireAuth } from "@/lib/auth"
@@ -7,6 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { cn, formatINR } from "@/lib/utils"
 import { RefreshReportButton } from "./refresh-button"
+
+function cooldownMinutes(computedAt: Date | null): number {
+  if (!computedAt) return 0
+  const ageMs = Date.now() - computedAt.getTime()
+  return ageMs < 60 * 60 * 1000 ? Math.ceil((60 * 60 * 1000 - ageMs) / 60_000) : 0
+}
 
 function currentWeekStartStr(): string {
   const now = new Date()
@@ -33,10 +39,7 @@ export default async function BiasReportPage() {
   })
 
   const lastRefreshed = report ? new Date(report.computedAt) : null
-  const ageMs = lastRefreshed ? Date.now() - lastRefreshed.getTime() : null
-  const cooldownRemaining = ageMs !== null && ageMs < 60 * 60 * 1000
-    ? Math.ceil((60 * 60 * 1000 - ageMs) / 60_000)
-    : 0
+  const cooldownRemaining = cooldownMinutes(lastRefreshed)
 
   const dispositionRatio = report?.dispositionRatio ? parseFloat(report.dispositionRatio) : null
   const dispositionCost = report?.dispositionCost ? parseFloat(report.dispositionCost) : null

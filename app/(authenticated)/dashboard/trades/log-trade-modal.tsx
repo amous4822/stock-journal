@@ -3,7 +3,7 @@
 "use client"
 
 import { useState } from "react"
-import { useForm, type Resolver } from "react-hook-form"
+import { useForm, useWatch, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -35,7 +35,7 @@ export function LogTradeModal({ floating }: Props) {
   const {
     register,
     handleSubmit,
-    watch,
+    control,
     setValue,
     reset,
     formState: { errors, isSubmitting },
@@ -49,7 +49,8 @@ export function LogTradeModal({ floating }: Props) {
     },
   })
 
-  const action = watch("action")
+  const action = useWatch({ control, name: "action" })
+  const entryReasoning = useWatch({ control, name: "entryReasoning" })
 
   async function onSubmit(data: CreateTradeInput) {
     const result = await createTrade(data)
@@ -211,7 +212,7 @@ export function LogTradeModal({ floating }: Props) {
                 id="entryReasoning"
                 rows={3}
                 placeholder="e.g. Reliance broke out of a 3-week consolidation on high volume. I'm targeting ₹2600 with a stop at ₹2380."
-                value={watch("entryReasoning") ?? ""}
+                value={entryReasoning ?? ""}
                 onValueChange={(v) => setValue("entryReasoning", v, { shouldValidate: true })}
               />
               {errors.entryReasoning && (

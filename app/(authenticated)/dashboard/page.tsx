@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { desc, eq, sum, sql } from "drizzle-orm"
+import { desc, eq, sql } from "drizzle-orm"
 import { TrendingUp, TrendingDown, Activity, Info } from "lucide-react"
 import { db } from "@/lib/db"
 import { trades, shadowOutcomes } from "@/lib/db/schema"
@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn, formatINR, formatDate } from "@/lib/utils"
 import { LogTradeModal } from "./trades/log-trade-modal"
+import { DemoDataButton } from "./demo-data-button"
 
 export default async function DashboardPage() {
   const session = await requireAuth()
@@ -61,7 +62,10 @@ export default async function DashboardPage() {
             Here&apos;s how your trading is going this week.
           </p>
         </div>
-        <LogTradeModal />
+        <div className="flex items-center gap-2">
+          {allTrades.length < 10 && <DemoDataButton />}
+          <LogTradeModal />
+        </div>
       </div>
 
       {/* Stats bar */}

@@ -1,0 +1,298 @@
+"use server"
+
+import { eq, count } from "drizzle-orm"
+import { db } from "@/lib/db"
+import { trades, shadowOutcomes } from "@/lib/db/schema"
+import { requireAuthForAction } from "@/lib/auth"
+import { logger } from "@/lib/logger"
+
+// Returns a Date at <days> ago from today at the given local hour:minute.
+function daysAgo(days: number, hour: number, minute: number): Date {
+  const d = new Date()
+  d.setDate(d.getDate() - days)
+  d.setHours(hour, minute, 0, 0)
+  return d
+}
+
+export async function loadDemoData(): Promise<
+  { ok: true; data: { tradesCreated: number } } | { ok: false; error: string }
+> {
+  const auth = await requireAuthForAction()
+  if (!auth.ok) return auth
+
+  const { userId } = auth
+
+  logger.info("loadDemoData:start", { userId })
+
+  // Idempotency: refuse if the user already has trades.
+  const [{ value: existing }] = await db
+    .select({ value: count() })
+    .from(trades)
+    .where(eq(trades.userId, userId))
+
+  if (existing >= 10) {
+    return { ok: false, error: "You already have 10 or more trades. Clear your trades first." }
+  }
+
+  // TCS exit anchors MARUTI's entry/exit so the Markov revenge model (60-min window) detects it.
+  const tcsExit = daysAgo(18, 10, 30)
+  const marutiEntry = new Date(tcsExit.getTime() + 45 * 60 * 1000) // +45 min
+  const marutiExit = new Date(tcsExit.getTime() + 55 * 60 * 1000) // +55 min (within 60-min window)
+
+  // All 10 trades inserted in one batch — no AI calls; tags are hardcoded from spec.
+  const inserted = await db
+    .insert(trades)
+    .values([
+      // 1. RELIANCE — long winner, disciplined exit at target
+      {
+        userId,
+        symbol: "RELIANCE",
+        action: "buy",
+        quantity: 50,
+        entryPrice: "2850.00",
+        entryDate: daysAgo(25, 9, 30),
+        exitPrice: "3095.00",
+        exitDate: daysAgo(10, 14, 0),
+        status: "closed",
+        entryReasoning: "Strong breakout above 200 DMA with volume. Target 3100, stop 2780.",
+        exitReasoning: "Hit target. Exited as planned.",
+        primaryStrategy: "technical",
+        emotionalStateEntry: "calm",
+        plannedTargetPrice: "3100.00",
+        plannedStopLoss: "2780.00",
+        exitReason: "hit_target",
+        emotionalStateExit: "calm",
+        realizedPnl: "12250.00",
+        isDeviation: false,
+      },
+      // 2. TCS — panic sell before target, IS DEVIATION — shadow outcome inserted below
+      {
+        userId,
+        symbol: "TCS",
+        action: "buy",
+        quantity: 20,
+        entryPrice: "3920.00",
+        entryDate: daysAgo(22, 9, 30),
+        exitPrice: "3780.00",
+        exitDate: tcsExit,
+        status: "closed",
+        entryReasoning: "Results beat estimates. Target 4200, stop 3800.",
+        exitReasoning: "Got nervous after market dropped 1%. Exited early.",
+        primaryStrategy: "fundamental",
+        emotionalStateEntry: "calm",
+        plannedTargetPrice: "4200.00",
+        plannedStopLoss: "3800.00",
+        exitReason: "panic",
+        emotionalStateExit: "anxiety",
+        realizedPnl: "-2800.00",
+        isDeviation: true,
+      },
+      // 3. HDFCBANK — FOMO entry on social tip, no plan (sentinel 0 for target/stop)
+      {
+        userId,
+        symbol: "HDFCBANK",
+        action: "buy",
+        quantity: 30,
+        entryPrice: "1680.00",
+        entryDate: daysAgo(20, 10, 0),
+        exitPrice: "1590.00",
+        exitDate: daysAgo(14, 13, 0),
+        status: "closed",
+        entryReasoning: "WhatsApp tip said HDFCBANK will gap up tomorrow. Bought without checking.",
+        exitReasoning: "Stopped out on fear.",
+        primaryStrategy: "social_proof",
+        emotionalStateEntry: "fomo",
+        plannedTargetPrice: "0.00",
+        plannedStopLoss: "0.00",
+        exitReason: "panic",
+        emotionalStateExit: "anxiety",
+        realizedPnl: "-2700.00",
+        isDeviation: false,
+      },
+      // 4. INFY — disciplined stop hit
+      {
+        userId,
+        symbol: "INFY",
+        action: "buy",
+        quantity: 40,
+        entryPrice: "1450.00",
+        entryDate: daysAgo(18, 9, 30),
+        exitPrice: "1420.00",
+        exitDate: daysAgo(15, 15, 0),
+        status: "closed",
+        entryReasoning: "Cup-and-handle pattern. Target 1550, stop 1420.",
+        exitReasoning: "Stop triggered. Followed the plan.",
+        primaryStrategy: "technical",
+        emotionalStateEntry: "calm",
+        plannedTargetPrice: "1550.00",
+        plannedStopLoss: "1420.00",
+        exitReason: "hit_stop",
+        emotionalStateExit: "calm",
+        realizedPnl: "-1200.00",
+        isDeviation: false,
+      },
+      // 5. TATAMOTORS — panicked out of a winning trade early, IS DEVIATION — shadow inserted below
+      {
+        userId,
+        symbol: "TATAMOTORS",
+        action: "buy",
+        quantity: 60,
+        entryPrice: "820.00",
+        entryDate: daysAgo(16, 9, 30),
+        exitPrice: "845.00",
+        exitDate: daysAgo(13, 11, 0),
+        status: "closed",
+        entryReasoning: "EV pivot story, technically strong. Target 920, stop 790.",
+        exitReasoning: "Market sentiment turned bearish. Took small profit instead of waiting.",
+        primaryStrategy: "technical",
+        emotionalStateEntry: "calm",
+        plannedTargetPrice: "920.00",
+        plannedStopLoss: "790.00",
+        exitReason: "panic",
+        emotionalStateExit: "anxiety",
+        realizedPnl: "1500.00",
+        isDeviation: true,
+      },
+      // 6. MARUTI — entered 45 min after TCS loss, Markov model detects as revenge trade
+      {
+        userId,
+        symbol: "MARUTI",
+        action: "buy",
+        quantity: 15,
+        entryPrice: "11200.00",
+        entryDate: marutiEntry,
+        exitPrice: "10850.00",
+        exitDate: marutiExit,
+        status: "closed",
+        entryReasoning: "Gut feel after the TCS loss. Had to make it back.",
+        exitReasoning: "Cut quickly when it kept falling.",
+        primaryStrategy: "other",
+        emotionalStateEntry: "revenge",
+        plannedTargetPrice: "0.00",
+        plannedStopLoss: "0.00",
+        exitReason: "panic",
+        emotionalStateExit: "anxiety",
+        realizedPnl: "-5250.00",
+        isDeviation: false,
+      },
+      // 7. BAJFINANCE — disciplined stop hit
+      {
+        userId,
+        symbol: "BAJFINANCE",
+        action: "buy",
+        quantity: 10,
+        entryPrice: "6800.00",
+        entryDate: daysAgo(13, 9, 30),
+        exitPrice: "6550.00",
+        exitDate: daysAgo(10, 14, 30),
+        status: "closed",
+        entryReasoning: "Credit growth thesis. Target 7100, stop 6550.",
+        exitReasoning: "Stop hit after NPA concerns surfaced.",
+        primaryStrategy: "fundamental",
+        emotionalStateEntry: "calm",
+        plannedTargetPrice: "7100.00",
+        plannedStopLoss: "6550.00",
+        exitReason: "hit_stop",
+        emotionalStateExit: "calm",
+        realizedPnl: "-2500.00",
+        isDeviation: false,
+      },
+      // 8. ITC — FOMO on dividend news, no plan
+      {
+        userId,
+        symbol: "ITC",
+        action: "buy",
+        quantity: 100,
+        entryPrice: "480.00",
+        entryDate: daysAgo(12, 10, 0),
+        exitPrice: "461.00",
+        exitDate: daysAgo(8, 13, 0),
+        status: "closed",
+        entryReasoning: "Everyone on Twitter said ITC dividend play. FOMO — bought without analysis.",
+        exitReasoning: "Lost conviction. Sold at a loss.",
+        primaryStrategy: "social_proof",
+        emotionalStateEntry: "fomo",
+        plannedTargetPrice: "0.00",
+        plannedStopLoss: "0.00",
+        exitReason: "other",
+        emotionalStateExit: "anxiety",
+        realizedPnl: "-1900.00",
+        isDeviation: false,
+      },
+      // 9. ASIANPAINT — panic exit before stop, IS DEVIATION — shadow inserted below
+      {
+        userId,
+        symbol: "ASIANPAINT",
+        action: "buy",
+        quantity: 8,
+        entryPrice: "2950.00",
+        entryDate: daysAgo(10, 9, 30),
+        exitPrice: "2910.00",
+        exitDate: daysAgo(7, 11, 0),
+        status: "closed",
+        entryReasoning: "Volume breakout from consolidation. Target 2880 stop, aiming for 3100.",
+        exitReasoning: "Couldn't handle seeing it red. Exited before stop.",
+        primaryStrategy: "technical",
+        emotionalStateEntry: "calm",
+        plannedTargetPrice: "3100.00",
+        plannedStopLoss: "2880.00",
+        exitReason: "panic",
+        emotionalStateExit: "anxiety",
+        realizedPnl: "-320.00",
+        isDeviation: true,
+      },
+      // 10. ICICIBANK — open position, running as planned
+      {
+        userId,
+        symbol: "ICICIBANK",
+        action: "buy",
+        quantity: 25,
+        entryPrice: "1180.00",
+        entryDate: daysAgo(5, 9, 30),
+        status: "open",
+        entryReasoning: "Strong retail credit growth. Target 1280, stop 1140.",
+        primaryStrategy: "technical",
+        emotionalStateEntry: "confidence",
+        plannedTargetPrice: "1280.00",
+        plannedStopLoss: "1140.00",
+        isDeviation: false,
+      },
+    ])
+    .returning({ id: trades.id, symbol: trades.symbol })
+
+  // Map symbol → id for the three deviation trades needing shadow outcomes.
+  const bySymbol = Object.fromEntries(inserted.map((t) => [t.symbol, t.id]))
+
+  // Hardcoded shadow outcomes — not calling computeShadow() to avoid network dependency
+  // and ensure deterministic demo values. Numbers derived from spec:
+  // TCS: target 4200 eventually hit → shadow_pnl = (4200-3920)*20 = 5600, delta = 5600-(-2800) = 8400
+  // TATAMOTORS: target 920 eventually hit → shadow_pnl = (920-820)*60 = 6000, delta = 6000-1500 = 4500
+  // ASIANPAINT: stop 2880 hit → shadow_pnl = (2880-2950)*8 = -560, delta = -560-(-320) = -240
+  await db.insert(shadowOutcomes).values([
+    {
+      tradeId: bySymbol["TCS"],
+      shadowExitPrice: "4200.00",
+      shadowExitDate: daysAgo(12, 14, 0),
+      shadowPnl: "5600.00",
+      pnlDelta: "8400.00",
+    },
+    {
+      tradeId: bySymbol["TATAMOTORS"],
+      shadowExitPrice: "920.00",
+      shadowExitDate: daysAgo(8, 14, 0),
+      shadowPnl: "6000.00",
+      pnlDelta: "4500.00",
+    },
+    {
+      tradeId: bySymbol["ASIANPAINT"],
+      shadowExitPrice: "2880.00",
+      shadowExitDate: daysAgo(3, 14, 0),
+      shadowPnl: "-560.00",
+      pnlDelta: "-240.00",
+    },
+  ])
+
+  logger.info("loadDemoData:done", { userId, tradesCreated: 10 })
+
+  return { ok: true, data: { tradesCreated: 10 } }
+}

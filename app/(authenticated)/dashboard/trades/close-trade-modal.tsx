@@ -2,7 +2,7 @@
 "use client"
 
 import { useState } from "react"
-import { useForm, type Resolver } from "react-hook-form"
+import { useForm, useWatch, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -33,7 +33,7 @@ export function CloseTradeModal({ tradeId }: Props) {
   const {
     register,
     handleSubmit,
-    watch,
+    control,
     setValue,
     reset,
     formState: { errors, isSubmitting },
@@ -45,6 +45,8 @@ export function CloseTradeModal({ tradeId }: Props) {
       exitDate: toDatetimeLocal() as unknown as Date,
     },
   })
+
+  const exitReasoning = useWatch({ control, name: "exitReasoning" })
 
   async function onSubmit(data: CloseTradeFormInput) {
     // tradeId comes from props, not the form — it's injected here so the form
@@ -123,7 +125,7 @@ export function CloseTradeModal({ tradeId }: Props) {
                 id="exitReasoning"
                 rows={3}
                 placeholder="e.g. Hit my ₹2600 target as planned. Stock looked extended and I didn't want to give back gains."
-                value={watch("exitReasoning") ?? ""}
+                value={exitReasoning ?? ""}
                 onValueChange={(v) => setValue("exitReasoning", v, { shouldValidate: true })}
               />
               {errors.exitReasoning && (
