@@ -1,8 +1,3 @@
-// FOMO P&L — sums P&L of trades tagged social_proof vs everything else.
-// Defined in SPEC.md §Bias math.
-//
-// Simple: for closed trades, partition by primaryStrategy === 'social_proof'
-// and sum realized_pnl for each group.
 import type { Trade } from "@/lib/db/schema"
 
 export interface FomoResult {

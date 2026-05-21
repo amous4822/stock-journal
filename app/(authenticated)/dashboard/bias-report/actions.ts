@@ -11,12 +11,10 @@ import { computeFomo } from "@/lib/bias/fomo"
 import { generateBiasNarrative } from "@/lib/ai/bias-narrative"
 import { revalidatePath } from "next/cache"
 
-type Result<T> = { ok: true; data: T } | { ok: false; error: string }
-
 function currentWeekStart(): Date {
   const now = new Date()
-  const day = now.getUTCDay() // 0=Sun, 1=Mon, ..., 6=Sat
-  const diff = day === 0 ? -6 : 1 - day // shift to Monday
+  const day = now.getUTCDay()
+  const diff = day === 0 ? -6 : 1 - day
   const monday = new Date(now)
   monday.setUTCDate(now.getUTCDate() + diff)
   monday.setUTCHours(0, 0, 0, 0)
@@ -30,7 +28,7 @@ function currentWeekEnd(weekStart: Date): Date {
   return end
 }
 
-export async function computeBiasReport(): Promise<Result<BiasReport>> {
+export async function computeBiasReport(): Promise<{ ok: true; data: BiasReport } | { ok: false; error: string }> {
   logger.info("action:computeBiasReport:start")
 
   const authResult = await requireAuthForAction()

@@ -1,5 +1,6 @@
 import { z } from "zod"
 import { logger } from "@/lib/logger"
+import { groqFunctionCall } from "./groq"
 
 export const entryAnalysisSchema = z.object({
   primary_strategy: z.enum(["technical", "fundamental", "news", "social_proof", "other"]),
@@ -17,52 +18,6 @@ const FALLBACK: EntryAnalysis = {
   planned_stop_loss: null,
 }
 
-const MODEL = "llama-3.3-70b-versatile"
-const API_URL = "https://api.groq.com/openai/v1/chat/completions"
-
-// Groq's llama-3.3-70b doesn't support AI SDK's json_schema mode, so we use
-// the function-calling API directly to get structured output.
-async function groqFunctionCall(prompt: string, schema: z.ZodTypeAny): Promise<unknown> {
-  const apiKey = process.env.GROQ_API_KEY
-  if (!apiKey) throw new Error("GROQ_API_KEY is not set")
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const schemaJson = JSON.stringify((schema as any).toJSONSchema?.() ?? schema)
-
-  const response = await fetch(API_URL, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: MODEL,
-      messages: [{ role: "user", content: prompt }],
-      tools: [
-        {
-          type: "function",
-          function: {
-            name: "analyze_entry",
-            description: "Analyzes a trader's entry and extracts structured tags",
-            parameters: JSON.parse(schemaJson),
-          },
-        },
-      ],
-      tool_choice: { type: "function", function: { name: "analyze_entry" } },
-    }),
-  })
-
-  if (!response.ok) {
-    const text = await response.text()
-    throw new Error(`Groq API error ${response.status}: ${text}`)
-  }
-
-  const data = await response.json() as {
-    choices: Array<{ message: { tool_calls?: Array<{ function: { arguments: string } }> } }>
-  }
-
-  const toolCall = data.choices[0]?.message?.tool_calls?.[0]
-  if (!toolCall) throw new Error("No tool call in Groq response")
-  return JSON.parse(toolCall.function.arguments)
-}
-
 async function attempt(reasoning: string): Promise<EntryAnalysis> {
   const prompt = `You are analyzing an Indian retail trader's note about a trade they just made. Extract:
 1. Their primary strategy (technical = chart patterns/indicators; fundamental = earnings/valuation; news = recent news event; social_proof = Twitter/Reddit/friends tip; other = unclear)
@@ -74,7 +29,7 @@ Be conservative — if strategy or emotion is not clear, default to 'other' and 
 
 Trader's note: ${reasoning}`
 
-  const raw = await groqFunctionCall(prompt, entryAnalysisSchema)
+  const raw = await groqFunctionCall(prompt, "analyze_entry", "Analyzes a trader's entry and extracts structured tags", entryAnalysisSchema)
   return entryAnalysisSchema.parse(raw)
 }
 

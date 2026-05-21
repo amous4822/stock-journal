@@ -90,7 +90,6 @@ export async function closeTrade(input: unknown): Promise<Result<Trade>> {
 
     const analysis = await analyzeExit(existing.entryReasoning, exitReasoning, plannedTarget, plannedStop, entryPrice, exitPrice)
 
-    // Buy: profit when price rises; Sell: profit when price falls
     const direction = existing.action === "buy" ? 1 : -1
     const realizedPnl = (exitPrice - entryPrice) * existing.quantity * direction
 

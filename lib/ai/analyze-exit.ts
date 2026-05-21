@@ -1,22 +1,10 @@
 import { z } from "zod"
 import { logger } from "@/lib/logger"
+import { groqFunctionCall } from "./groq"
 
 export const exitAnalysisSchema = z.object({
-  exit_reason: z.enum([
-    "hit_target",
-    "hit_stop",
-    "panic",
-    "anxiety",
-    "reevaluation",
-    "other",
-  ]),
-  emotional_state: z.enum([
-    "calm",
-    "fomo",
-    "revenge",
-    "anxiety",
-    "confidence",
-  ]),
+  exit_reason: z.enum(["hit_target", "hit_stop", "panic", "anxiety", "reevaluation", "other"]),
+  emotional_state: z.enum(["calm", "fomo", "revenge", "anxiety", "confidence"]),
   is_deviation: z.boolean(),
   deviation_explanation: z.string().nullable(),
 })
@@ -28,63 +16,6 @@ const FALLBACK: ExitAnalysis = {
   emotional_state: "calm",
   is_deviation: false,
   deviation_explanation: null,
-}
-
-const MODEL = "llama-3.3-70b-versatile"
-const API_URL = "https://api.groq.com/openai/v1/chat/completions"
-
-async function groqFunctionCall(
-  prompt: string,
-  schema: z.ZodTypeAny
-): Promise<unknown> {
-  const apiKey = process.env.GROQ_API_KEY
-  if (!apiKey) throw new Error("GROQ_API_KEY is not set")
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const schemaJson = JSON.stringify((schema as any).toJSONSchema?.() ?? schema)
-
-  const response = await fetch(API_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      messages: [{ role: "user", content: prompt }],
-      tools: [
-        {
-          type: "function",
-          function: {
-            name: "analyze_exit",
-            description: "Analyzes a trader's exit and classifies deviation from plan",
-            parameters: JSON.parse(schemaJson),
-          },
-        },
-      ],
-      tool_choice: { type: "function", function: { name: "analyze_exit" } },
-    }),
-  })
-
-  if (!response.ok) {
-    const text = await response.text()
-    throw new Error(`Groq API error ${response.status}: ${text}`)
-  }
-
-  const data = await response.json() as {
-    choices: Array<{
-      message: {
-        tool_calls?: Array<{
-          function: { arguments: string }
-        }>
-      }
-    }>
-  }
-
-  const toolCall = data.choices[0]?.message?.tool_calls?.[0]
-  if (!toolCall) throw new Error("No tool call in Groq response")
-
-  return JSON.parse(toolCall.function.arguments)
 }
 
 function buildPrompt(
@@ -125,7 +56,7 @@ async function attempt(
   exitPrice: number
 ): Promise<ExitAnalysis> {
   const prompt = buildPrompt(entryReasoning, exitReasoning, plannedTarget, plannedStop, entryPrice, exitPrice)
-  const raw = await groqFunctionCall(prompt, exitAnalysisSchema)
+  const raw = await groqFunctionCall(prompt, "analyze_exit", "Analyzes a trader's exit and classifies deviation from plan", exitAnalysisSchema)
   return exitAnalysisSchema.parse(raw)
 }
 
@@ -153,10 +84,7 @@ export async function analyzeExit(
       logger.info("ai:analyzeExit:success_on_retry", { latencyMs: Date.now() - start })
       return result
     } catch (secondError) {
-      logger.error("ai:analyzeExit:fallback_used", {
-        error: String(secondError),
-        latencyMs: Date.now() - start,
-      })
+      logger.error("ai:analyzeExit:fallback_used", { error: String(secondError), latencyMs: Date.now() - start })
       return FALLBACK
     }
   }

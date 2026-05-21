@@ -1,20 +1,18 @@
 import { logger } from "@/lib/logger"
+import { GROQ_MODEL, GROQ_API_URL } from "./groq"
 
 export interface BiasStats {
-  dispositionRatio: number       // >1 = holds losers longer
-  dispositionCost: number        // ₹ estimated cost
-  revengeBaseline: number        // overall win rate
-  revengeConditional: number     // win rate after a loss
+  dispositionRatio: number
+  dispositionCost: number
+  revengeBaseline: number
+  revengeConditional: number
   revengeTradesCount: number
-  fomoStrategyPnl: number        // P&L from social_proof trades
+  fomoStrategyPnl: number
   otherStrategyPnl: number
   fomoCount: number
   totalTrades: number
   insufficientRevengeData: boolean
 }
-
-const MODEL = "llama-3.3-70b-versatile"
-const API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 function buildPrompt(stats: BiasStats): string {
   const dispositionLine = stats.dispositionRatio > 1
@@ -47,14 +45,11 @@ async function callGroq(prompt: string): Promise<string> {
   const apiKey = process.env.GROQ_API_KEY
   if (!apiKey) throw new Error("GROQ_API_KEY is not set")
 
-  const response = await fetch(API_URL, {
+  const response = await fetch(GROQ_API_URL, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: MODEL,
+      model: GROQ_MODEL,
       messages: [{ role: "user", content: prompt }],
       max_tokens: 300,
       temperature: 0.7,
@@ -94,10 +89,7 @@ export async function generateBiasNarrative(stats: BiasStats): Promise<string> {
       logger.info("ai:generateBiasNarrative:success_on_retry", { latencyMs: Date.now() - start })
       return result
     } catch (secondError) {
-      logger.error("ai:generateBiasNarrative:fallback_used", {
-        error: String(secondError),
-        latencyMs: Date.now() - start,
-      })
+      logger.error("ai:generateBiasNarrative:fallback_used", { error: String(secondError), latencyMs: Date.now() - start })
       return FALLBACK_NARRATIVE
     }
   }

@@ -39,11 +39,9 @@ export async function loadDemoData(): Promise<
   const marutiEntry = new Date(tcsExit.getTime() + 45 * 60 * 1000) // +45 min
   const marutiExit = new Date(tcsExit.getTime() + 55 * 60 * 1000) // +55 min (within 60-min window)
 
-  // All 10 trades inserted in one batch — no AI calls; tags are hardcoded from spec.
   const inserted = await db
     .insert(trades)
     .values([
-      // 1. RELIANCE — long winner, disciplined exit at target
       {
         userId,
         symbol: "RELIANCE",
@@ -65,7 +63,7 @@ export async function loadDemoData(): Promise<
         realizedPnl: "12250.00",
         isDeviation: false,
       },
-      // 2. TCS — panic sell before target, IS DEVIATION — shadow outcome inserted below
+      // TCS — deviation, shadow outcome computed below
       {
         userId,
         symbol: "TCS",
@@ -87,7 +85,6 @@ export async function loadDemoData(): Promise<
         realizedPnl: "-2800.00",
         isDeviation: true,
       },
-      // 3. HDFCBANK — FOMO entry on social tip, no plan (sentinel 0 for target/stop)
       {
         userId,
         symbol: "HDFCBANK",
@@ -109,7 +106,6 @@ export async function loadDemoData(): Promise<
         realizedPnl: "-2700.00",
         isDeviation: false,
       },
-      // 4. INFY — disciplined stop hit
       {
         userId,
         symbol: "INFY",
@@ -131,7 +127,7 @@ export async function loadDemoData(): Promise<
         realizedPnl: "-1200.00",
         isDeviation: false,
       },
-      // 5. TATAMOTORS — panicked out of a winning trade early, IS DEVIATION — shadow inserted below
+      // TATAMOTORS — deviation, shadow computed below
       {
         userId,
         symbol: "TATAMOTORS",
@@ -153,7 +149,7 @@ export async function loadDemoData(): Promise<
         realizedPnl: "1500.00",
         isDeviation: true,
       },
-      // 6. MARUTI — entered 45 min after TCS loss, Markov model detects as revenge trade
+      // MARUTI entered 45 min after TCS loss — shows up as revenge trade
       {
         userId,
         symbol: "MARUTI",
@@ -175,7 +171,6 @@ export async function loadDemoData(): Promise<
         realizedPnl: "-5250.00",
         isDeviation: false,
       },
-      // 7. BAJFINANCE — disciplined stop hit
       {
         userId,
         symbol: "BAJFINANCE",
@@ -197,7 +192,6 @@ export async function loadDemoData(): Promise<
         realizedPnl: "-2500.00",
         isDeviation: false,
       },
-      // 8. ITC — FOMO on dividend news, no plan
       {
         userId,
         symbol: "ITC",
@@ -219,7 +213,7 @@ export async function loadDemoData(): Promise<
         realizedPnl: "-1900.00",
         isDeviation: false,
       },
-      // 9. ASIANPAINT — panic exit before stop, IS DEVIATION — shadow inserted below
+      // ASIANPAINT — deviation, shadow computed below
       {
         userId,
         symbol: "ASIANPAINT",
@@ -241,7 +235,6 @@ export async function loadDemoData(): Promise<
         realizedPnl: "-320.00",
         isDeviation: true,
       },
-      // 10. ICICIBANK — open position, running as planned
       {
         userId,
         symbol: "ICICIBANK",
@@ -260,14 +253,10 @@ export async function loadDemoData(): Promise<
     ])
     .returning({ id: trades.id, symbol: trades.symbol })
 
-  // Map symbol → id for the three deviation trades needing shadow outcomes.
   const bySymbol = Object.fromEntries(inserted.map((t) => [t.symbol, t.id]))
 
-  // Hardcoded shadow outcomes — not calling computeShadow() to avoid network dependency
-  // and ensure deterministic demo values. Numbers derived from spec:
-  // TCS: target 4200 eventually hit → shadow_pnl = (4200-3920)*20 = 5600, delta = 5600-(-2800) = 8400
-  // TATAMOTORS: target 920 eventually hit → shadow_pnl = (920-820)*60 = 6000, delta = 6000-1500 = 4500
-  // ASIANPAINT: stop 2880 hit → shadow_pnl = (2880-2950)*8 = -560, delta = -560-(-320) = -240
+  // Hardcode shadow outcomes instead of calling computeShadow() — avoids a Yahoo Finance
+  // dependency during demo load and keeps values deterministic
   await db.insert(shadowOutcomes).values([
     {
       tradeId: bySymbol["TCS"],
