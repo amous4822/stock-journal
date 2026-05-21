@@ -7,9 +7,7 @@ import { cn } from "@/lib/utils"
 // Separates hover-open (managed by base-ui) from click-pinned (managed by us).
 // This lets click work on mobile without fighting hover state on desktop.
 const TooltipPinContext = createContext<{
-  pinned: boolean
   setPinned: (v: boolean) => void
-  setHoverOpen: (v: boolean) => void
 } | null>(null)
 
 function TooltipProvider({
@@ -29,13 +27,19 @@ function Tooltip({ ...props }: TooltipPrimitive.Root.Props) {
   const [hoverOpen, setHoverOpen] = useState(false)
   const [pinned, setPinned] = useState(false)
 
+  function handleOpenChange(open: boolean) {
+    setHoverOpen(open)
+    // Clear pin on mouse-leave so moving away is enough to close — no second click needed.
+    if (!open) setPinned(false)
+  }
+
   return (
-    <TooltipPinContext.Provider value={{ pinned, setPinned, setHoverOpen }}>
+    <TooltipPinContext.Provider value={{ setPinned }}>
       <TooltipPrimitive.Root
         data-slot="tooltip"
         {...props}
         open={hoverOpen || pinned}
-        onOpenChange={setHoverOpen}
+        onOpenChange={handleOpenChange}
       />
     </TooltipPinContext.Provider>
   )
@@ -46,14 +50,7 @@ function TooltipTrigger({ ...props }: TooltipPrimitive.Trigger.Props) {
   return (
     <TooltipPrimitive.Trigger
       data-slot="tooltip-trigger"
-      onClick={() => {
-        if (!ctx) return
-        const next = !ctx.pinned
-        ctx.setPinned(next)
-        // When closing via click, also clear hover state so the tooltip
-        // doesn't stay open because the mouse is still over the trigger.
-        if (!next) ctx.setHoverOpen(false)
-      }}
+      onClick={() => ctx?.setPinned(true)}
       {...props}
     />
   )
