@@ -6,11 +6,22 @@ import { trades, shadowOutcomes } from "@/lib/db/schema"
 import { requireAuthForAction } from "@/lib/auth"
 import { logger } from "@/lib/logger"
 
-// Returns a Date at <days> ago from today at the given local hour:minute.
-function daysAgo(days: number, hour: number, minute: number): Date {
-  const d = new Date()
-  d.setDate(d.getDate() - days)
-  d.setHours(hour, minute, 0, 0)
+// Returns a Date within the current ISO week (Mon=0 … Sun=6) at the given UTC hour:minute.
+// Using week-relative dates ensures demo trades always land in the bias report's weekly window.
+function currentWeekStart(): Date {
+  const now = new Date()
+  const day = now.getUTCDay()
+  const diff = day === 0 ? -6 : 1 - day
+  const monday = new Date(now)
+  monday.setUTCDate(now.getUTCDate() + diff)
+  monday.setUTCHours(0, 0, 0, 0)
+  return monday
+}
+
+function weekDay(weekStart: Date, dayOffset: number, hour: number, minute: number): Date {
+  const d = new Date(weekStart)
+  d.setUTCDate(weekStart.getUTCDate() + dayOffset)
+  d.setUTCHours(hour, minute, 0, 0)
   return d
 }
 
@@ -34,10 +45,12 @@ export async function loadDemoData(): Promise<
     return { ok: false, error: "You already have 10 or more trades. Clear your trades first." }
   }
 
+  const ws = currentWeekStart()
+
   // TCS exit anchors MARUTI's entry/exit so the Markov revenge model (60-min window) detects it.
-  const tcsExit = daysAgo(18, 10, 30)
+  const tcsExit = weekDay(ws, 0, 10, 30) // Monday 10:30
   const marutiEntry = new Date(tcsExit.getTime() + 45 * 60 * 1000) // +45 min
-  const marutiExit = new Date(tcsExit.getTime() + 55 * 60 * 1000) // +55 min (within 60-min window)
+  const marutiExit = new Date(tcsExit.getTime() + 55 * 60 * 1000)  // +55 min (within 60-min window)
 
   const inserted = await db
     .insert(trades)
@@ -48,9 +61,9 @@ export async function loadDemoData(): Promise<
         action: "buy",
         quantity: 50,
         entryPrice: "2850.00",
-        entryDate: daysAgo(25, 9, 30),
+        entryDate: weekDay(ws, 0, 9, 30),
         exitPrice: "3095.00",
-        exitDate: daysAgo(10, 14, 0),
+        exitDate: weekDay(ws, 0, 14, 0),
         status: "closed",
         entryReasoning: "Strong breakout above 200 DMA with volume. Target 3100, stop 2780.",
         exitReasoning: "Hit target. Exited as planned.",
@@ -70,7 +83,7 @@ export async function loadDemoData(): Promise<
         action: "buy",
         quantity: 20,
         entryPrice: "3920.00",
-        entryDate: daysAgo(22, 9, 30),
+        entryDate: weekDay(ws, 0, 9, 30),
         exitPrice: "3780.00",
         exitDate: tcsExit,
         status: "closed",
@@ -91,9 +104,9 @@ export async function loadDemoData(): Promise<
         action: "buy",
         quantity: 30,
         entryPrice: "1680.00",
-        entryDate: daysAgo(20, 10, 0),
+        entryDate: weekDay(ws, 0, 10, 0),
         exitPrice: "1590.00",
-        exitDate: daysAgo(14, 13, 0),
+        exitDate: weekDay(ws, 0, 13, 0),
         status: "closed",
         entryReasoning: "WhatsApp tip said HDFCBANK will gap up tomorrow. Bought without checking.",
         exitReasoning: "Stopped out on fear.",
@@ -112,9 +125,9 @@ export async function loadDemoData(): Promise<
         action: "buy",
         quantity: 40,
         entryPrice: "1450.00",
-        entryDate: daysAgo(18, 9, 30),
+        entryDate: weekDay(ws, 1, 9, 30),
         exitPrice: "1420.00",
-        exitDate: daysAgo(15, 15, 0),
+        exitDate: weekDay(ws, 1, 15, 0),
         status: "closed",
         entryReasoning: "Cup-and-handle pattern. Target 1550, stop 1420.",
         exitReasoning: "Stop triggered. Followed the plan.",
@@ -134,9 +147,9 @@ export async function loadDemoData(): Promise<
         action: "buy",
         quantity: 60,
         entryPrice: "820.00",
-        entryDate: daysAgo(16, 9, 30),
+        entryDate: weekDay(ws, 1, 9, 30),
         exitPrice: "845.00",
-        exitDate: daysAgo(13, 11, 0),
+        exitDate: weekDay(ws, 1, 11, 0),
         status: "closed",
         entryReasoning: "EV pivot story, technically strong. Target 920, stop 790.",
         exitReasoning: "Market sentiment turned bearish. Took small profit instead of waiting.",
@@ -177,9 +190,9 @@ export async function loadDemoData(): Promise<
         action: "buy",
         quantity: 10,
         entryPrice: "6800.00",
-        entryDate: daysAgo(13, 9, 30),
+        entryDate: weekDay(ws, 1, 9, 30),
         exitPrice: "6550.00",
-        exitDate: daysAgo(10, 14, 30),
+        exitDate: weekDay(ws, 1, 14, 30),
         status: "closed",
         entryReasoning: "Credit growth thesis. Target 7100, stop 6550.",
         exitReasoning: "Stop hit after NPA concerns surfaced.",
@@ -198,9 +211,9 @@ export async function loadDemoData(): Promise<
         action: "buy",
         quantity: 100,
         entryPrice: "480.00",
-        entryDate: daysAgo(12, 10, 0),
+        entryDate: weekDay(ws, 2, 10, 0),
         exitPrice: "461.00",
-        exitDate: daysAgo(8, 13, 0),
+        exitDate: weekDay(ws, 2, 13, 0),
         status: "closed",
         entryReasoning: "Everyone on Twitter said ITC dividend play. FOMO — bought without analysis.",
         exitReasoning: "Lost conviction. Sold at a loss.",
@@ -220,9 +233,9 @@ export async function loadDemoData(): Promise<
         action: "buy",
         quantity: 8,
         entryPrice: "2950.00",
-        entryDate: daysAgo(10, 9, 30),
+        entryDate: weekDay(ws, 2, 9, 30),
         exitPrice: "2910.00",
-        exitDate: daysAgo(7, 11, 0),
+        exitDate: weekDay(ws, 2, 11, 0),
         status: "closed",
         entryReasoning: "Volume breakout from consolidation. Target 2880 stop, aiming for 3100.",
         exitReasoning: "Couldn't handle seeing it red. Exited before stop.",
@@ -241,7 +254,7 @@ export async function loadDemoData(): Promise<
         action: "buy",
         quantity: 25,
         entryPrice: "1180.00",
-        entryDate: daysAgo(5, 9, 30),
+        entryDate: weekDay(ws, 3, 9, 30),
         status: "open",
         entryReasoning: "Strong retail credit growth. Target 1280, stop 1140.",
         primaryStrategy: "technical",
@@ -261,21 +274,21 @@ export async function loadDemoData(): Promise<
     {
       tradeId: bySymbol["TCS"],
       shadowExitPrice: "4200.00",
-      shadowExitDate: daysAgo(12, 14, 0),
+      shadowExitDate: weekDay(ws, 2, 14, 0),
       shadowPnl: "5600.00",
       pnlDelta: "8400.00",
     },
     {
       tradeId: bySymbol["TATAMOTORS"],
       shadowExitPrice: "920.00",
-      shadowExitDate: daysAgo(8, 14, 0),
+      shadowExitDate: weekDay(ws, 3, 14, 0),
       shadowPnl: "6000.00",
       pnlDelta: "4500.00",
     },
     {
       tradeId: bySymbol["ASIANPAINT"],
       shadowExitPrice: "2880.00",
-      shadowExitDate: daysAgo(3, 14, 0),
+      shadowExitDate: weekDay(ws, 3, 14, 0),
       shadowPnl: "-560.00",
       pnlDelta: "-240.00",
     },
