@@ -1,8 +1,16 @@
 "use client"
 
+import { createContext, useContext, useState } from "react"
 import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip"
-
 import { cn } from "@/lib/utils"
+
+// Separates hover-open (managed by base-ui) from click-pinned (managed by us).
+// This lets click work on mobile without fighting hover state on desktop.
+const TooltipPinContext = createContext<{
+  pinned: boolean
+  setPinned: (v: boolean) => void
+  setHoverOpen: (v: boolean) => void
+} | null>(null)
 
 function TooltipProvider({
   delay = 0,
@@ -18,11 +26,37 @@ function TooltipProvider({
 }
 
 function Tooltip({ ...props }: TooltipPrimitive.Root.Props) {
-  return <TooltipPrimitive.Root data-slot="tooltip" {...props} />
+  const [hoverOpen, setHoverOpen] = useState(false)
+  const [pinned, setPinned] = useState(false)
+
+  return (
+    <TooltipPinContext.Provider value={{ pinned, setPinned, setHoverOpen }}>
+      <TooltipPrimitive.Root
+        data-slot="tooltip"
+        {...props}
+        open={hoverOpen || pinned}
+        onOpenChange={setHoverOpen}
+      />
+    </TooltipPinContext.Provider>
+  )
 }
 
 function TooltipTrigger({ ...props }: TooltipPrimitive.Trigger.Props) {
-  return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />
+  const ctx = useContext(TooltipPinContext)
+  return (
+    <TooltipPrimitive.Trigger
+      data-slot="tooltip-trigger"
+      onClick={() => {
+        if (!ctx) return
+        const next = !ctx.pinned
+        ctx.setPinned(next)
+        // When closing via click, also clear hover state so the tooltip
+        // doesn't stay open because the mouse is still over the trigger.
+        if (!next) ctx.setHoverOpen(false)
+      }}
+      {...props}
+    />
+  )
 }
 
 function TooltipContent({
