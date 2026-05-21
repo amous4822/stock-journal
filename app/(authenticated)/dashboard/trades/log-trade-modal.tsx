@@ -11,7 +11,7 @@ import { Plus, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
+import { VoiceTextarea } from "@/components/ui/voice-textarea"
 import {
   Dialog,
   DialogContent,
@@ -207,11 +207,12 @@ export function LogTradeModal({ floating }: Props) {
             {/* Entry Reasoning */}
             <div className="space-y-1.5">
               <Label htmlFor="entryReasoning">Why are you taking this trade?</Label>
-              <Textarea
+              <VoiceTextarea
                 id="entryReasoning"
                 rows={3}
                 placeholder="e.g. Reliance broke out of a 3-week consolidation on high volume. I'm targeting ₹2600 with a stop at ₹2380."
-                {...register("entryReasoning")}
+                value={watch("entryReasoning") ?? ""}
+                onValueChange={(v) => setValue("entryReasoning", v, { shouldValidate: true })}
               />
               {errors.entryReasoning && (
                 <p className="text-xs text-destructive">{errors.entryReasoning.message}</p>

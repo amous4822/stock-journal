@@ -10,7 +10,7 @@ import { X, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
+import { VoiceTextarea } from "@/components/ui/voice-textarea"
 import {
   Dialog,
   DialogContent,
@@ -33,6 +33,8 @@ export function CloseTradeModal({ tradeId }: Props) {
   const {
     register,
     handleSubmit,
+    watch,
+    setValue,
     reset,
     formState: { errors, isSubmitting },
   } = useForm<CloseTradeFormInput>({
@@ -117,11 +119,12 @@ export function CloseTradeModal({ tradeId }: Props) {
             {/* Exit Reasoning */}
             <div className="space-y-1.5">
               <Label htmlFor="exitReasoning">What made you close this?</Label>
-              <Textarea
+              <VoiceTextarea
                 id="exitReasoning"
                 rows={3}
                 placeholder="e.g. Hit my ₹2600 target as planned. Stock looked extended and I didn't want to give back gains."
-                {...register("exitReasoning")}
+                value={watch("exitReasoning") ?? ""}
+                onValueChange={(v) => setValue("exitReasoning", v, { shouldValidate: true })}
               />
               {errors.exitReasoning && (
                 <p className="text-xs text-destructive">{errors.exitReasoning.message}</p>

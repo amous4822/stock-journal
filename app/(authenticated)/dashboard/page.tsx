@@ -1,12 +1,13 @@
 // Dashboard home — summary stats + recent trades. Shadow Portfolio widget comes in Phase 3.
 import Link from "next/link"
 import { desc, eq, sum, sql } from "drizzle-orm"
-import { TrendingUp, TrendingDown, Activity } from "lucide-react"
+import { TrendingUp, TrendingDown, Activity, Info } from "lucide-react"
 import { db } from "@/lib/db"
 import { trades, shadowOutcomes } from "@/lib/db/schema"
 import { requireAuth } from "@/lib/auth"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn, formatINR, formatDate } from "@/lib/utils"
 import { LogTradeModal } from "./trades/log-trade-modal"
 
@@ -78,18 +79,21 @@ export default async function DashboardPage() {
               : ""
           }
           sub={`${closedTrades.length} closed trade${closedTrades.length !== 1 ? "s" : ""}`}
+          tooltip="Sum of realized P&L across all your closed trades."
         />
         <StatCard
           title="Win Rate"
           value={winRate !== null ? `${winRate.toFixed(0)}%` : "—"}
           icon={Activity}
           sub={`${winCount} wins of ${closedTrades.length} closed`}
+          tooltip="Percentage of closed trades that closed profitably."
         />
         <StatCard
           title="Open Positions"
           value={String(openCount)}
           icon={TrendingUp}
           sub="trades currently running"
+          tooltip="Trades you've logged but not yet closed."
         />
       </div>
 
@@ -98,7 +102,17 @@ export default async function DashboardPage() {
         <Card className="border-green-200 dark:border-green-900">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Shadow Portfolio</CardTitle>
+              <div className="flex items-center gap-1.5">
+                <CardTitle className="text-base">Shadow Portfolio</CardTitle>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Info className="size-3.5 text-muted-foreground/60 cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-[260px] text-xs">
+                    <p>Compares your actual P&L to what you would have earned by strictly following your target and stop-loss plan. Shows the cost of emotional trading decisions.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               <Badge variant="outline" className="text-xs">
                 {shadowCount} trade{shadowCount !== 1 ? "s" : ""}
               </Badge>
@@ -106,19 +120,49 @@ export default async function DashboardPage() {
           </CardHeader>
           <CardContent className="grid grid-cols-3 gap-4">
             <div>
-              <p className="text-xs text-muted-foreground">Your Actual P&L</p>
+              <div className="flex items-center gap-1">
+                <p className="text-xs text-muted-foreground">Your Actual P&L</p>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Info className="size-3 text-muted-foreground/60 cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-[200px] text-xs">
+                    <p>Realized P&L from trades where you deviated from your plan.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               <p className={cn("text-xl font-bold font-mono", totalRealizedPnl >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400")}>
                 {totalRealizedPnl >= 0 ? "+" : ""}{formatINR(totalRealizedPnl)}
               </p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Shadow P&L</p>
+              <div className="flex items-center gap-1">
+                <p className="text-xs text-muted-foreground">Shadow P&L</p>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Info className="size-3 text-muted-foreground/60 cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-[200px] text-xs">
+                    <p>What you would have made if you exited exactly at your target or stop — whichever was hit first.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               <p className="text-xl font-bold font-mono text-muted-foreground">
                 {totalShadowPnl >= 0 ? "+" : ""}{formatINR(totalShadowPnl)}
               </p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Difference</p>
+              <div className="flex items-center gap-1">
+                <p className="text-xs text-muted-foreground">Difference</p>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Info className="size-3 text-muted-foreground/60 cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-[200px] text-xs">
+                    <p>Positive means bias cost you money. Negative means deviation actually saved you (or the trade would have lost more).</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               <p className={cn("text-xl font-bold font-mono", shadowDelta >= 0 ? "text-amber-600 dark:text-amber-400" : "text-blue-600 dark:text-blue-400")}>
                 {shadowDelta >= 0 ? "+" : ""}{formatINR(shadowDelta)}
               </p>
@@ -239,19 +283,33 @@ function StatCard({
   icon: Icon,
   sub,
   className,
+  tooltip,
 }: {
   title: string
   value: string
   icon: React.ComponentType<{ className?: string }>
   sub: string
   className?: string
+  tooltip?: string
 }) {
   return (
     <Card>
       <CardContent className="pt-6">
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-sm font-medium text-muted-foreground">{title}</p>
+            <div className="flex items-center gap-1.5">
+              <p className="text-sm font-medium text-muted-foreground">{title}</p>
+              {tooltip && (
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Info className="size-3.5 text-muted-foreground/60 cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-[200px] text-xs">
+                    <p>{tooltip}</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </div>
             <p className={cn("mt-1 text-2xl font-bold tracking-tight", className)}>{value}</p>
             <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p>
           </div>
