@@ -122,7 +122,7 @@ Visit `http://localhost:3000` and sign in with Google.
 │   └── ui/                        # shadcn/ui components + VoiceTextarea
 ├── lib/
 │   ├── ai/                        # analyzeEntry, analyzeExit, generateBiasNarrative
-│   ├── bias/                      # disposition.ts, revenge.ts, fomo.ts (pure functions + tests)
+│   ├── bias/                      # disposition.ts, revenge.ts, fomo.ts (pure functions)
 │   ├── db/                        # Drizzle instance + schema (all tables)
 │   ├── prices/                    # Yahoo Finance fetch + synthetic OHLC mock data
 │   ├── shadow/                    # computeShadow — simulates the disciplined exit
@@ -130,8 +130,7 @@ Visit `http://localhost:3000` and sign in with Google.
 │   ├── logger.ts                  # Structured JSON logger (stdout → Vercel log drain)
 │   └── utils.ts                   # formatINR, formatDate, cn, toDatetimeLocal
 ├── scripts/seed.ts                # Demo data seeder (gated to non-production)
-├── e2e/                           # Playwright E2E tests + global setup
-├── .github/workflows/ci.yml       # CI: lint → tsc → vitest → build → playwright
+├── .github/workflows/ci.yml       # CI: lint → tsc → build (master branch only)
 └── drizzle.config.ts
 ```
 
@@ -192,20 +191,9 @@ pnl_delta  = shadow_pnl - realized_pnl   # positive = left money on table
 
 ---
 
-## Testing
+## CI
 
-**Unit tests** (`pnpm test`, 16 tests):
-- `lib/bias/disposition.test.ts` — all-winners, all-losers, mixed trades
-- `lib/bias/revenge.test.ts` — no revenge trades, revenge trade win-rate drop
-- `lib/shadow/compute.test.ts` — target hit, stop hit, neither triggered
-
-**E2E tests** (`npx playwright test`):
-- `e2e/auth.spec.ts` — unauthenticated `/dashboard` redirects to sign-in (no secrets needed)
-- `e2e/trade-flow.spec.ts` — authenticated user creates and closes a trade end-to-end
-
-The trade-flow test mints a valid Auth.js JWT using `AUTH_SECRET` in `e2e/global-setup.ts`, bypassing Google OAuth in CI.
-
-**Not tested:** Groq API responses (non-deterministic, rate-limited — mocking the HTTP layer tests the mock, not the code). UI rendering beyond the e2e golden path.
+GitHub Actions runs on every push and pull request to `master`: lint (`eslint`) → type-check (`tsc --noEmit`) → build (`next build`). All three must pass for a merge.
 
 ---
 
