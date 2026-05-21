@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState } from "react"
+import { createContext, useContext, useState, useEffect } from "react"
 import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip"
 import { cn } from "@/lib/utils"
 
@@ -26,6 +26,16 @@ function TooltipProvider({
 function Tooltip({ ...props }: TooltipPrimitive.Root.Props) {
   const [hoverOpen, setHoverOpen] = useState(false)
   const [pinned, setPinned] = useState(false)
+
+  // Mobile has no pointer-leave, so register a one-shot document click listener
+  // whenever pinned. Any tap outside (or on the trigger again) clears the pin.
+  // Runs after paint so the click that opened the tooltip doesn't immediately close it.
+  useEffect(() => {
+    if (!pinned) return
+    function dismiss() { setPinned(false) }
+    document.addEventListener("click", dismiss, { once: true })
+    return () => document.removeEventListener("click", dismiss)
+  }, [pinned])
 
   return (
     <TooltipPinContext.Provider value={{ setPinned }}>
