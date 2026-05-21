@@ -118,7 +118,7 @@ export default async function DashboardPage() {
               </Badge>
             </div>
           </CardHeader>
-          <CardContent className="grid grid-cols-3 gap-4">
+          <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div>
               <div className="flex items-center gap-1">
                 <p className="text-xs text-muted-foreground">Your Actual P&L</p>

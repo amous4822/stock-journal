@@ -40,6 +40,8 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@auth/core": "^0.34.3",
+    "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

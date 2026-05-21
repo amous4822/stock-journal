@@ -48,3 +48,8 @@ CLAUDE_CODE_PROMPTS.md
 */*/*.test.ts
 */*.test.ts
 *.test.ts
+
+# Playwright
+e2e/.auth/
+playwright-report/
+test-results/

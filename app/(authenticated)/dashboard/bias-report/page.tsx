@@ -47,7 +47,7 @@ export default async function BiasReportPage() {
 
   return (
     <div className="flex flex-col gap-6 p-4 sm:p-6">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Bias Report</h1>
           <p className="text-sm text-muted-foreground">
