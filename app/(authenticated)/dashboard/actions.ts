@@ -1,8 +1,8 @@
 "use server"
 
-import { eq, count } from "drizzle-orm"
+import { eq } from "drizzle-orm"
 import { db } from "@/lib/db"
-import { trades, shadowOutcomes } from "@/lib/db/schema"
+import { trades, shadowOutcomes, biasReports } from "@/lib/db/schema"
 import { requireAuthForAction } from "@/lib/auth"
 import { logger } from "@/lib/logger"
 
@@ -35,15 +35,11 @@ export async function loadDemoData(): Promise<
 
   logger.info("loadDemoData:start", { userId })
 
-  // Idempotency: refuse if the user already has trades.
-  const [{ value: existing }] = await db
-    .select({ value: count() })
-    .from(trades)
-    .where(eq(trades.userId, userId))
-
-  if (existing >= 10) {
-    return { ok: false, error: "You already have 10 or more trades. Clear your trades first." }
-  }
+  // Clear all existing data for this user so the button always produces a clean slate.
+  // Shadow outcomes cascade-delete with trades; bias reports are deleted explicitly so
+  // the hourly cooldown doesn't block the user from immediately refreshing the report.
+  await db.delete(trades).where(eq(trades.userId, userId))
+  await db.delete(biasReports).where(eq(biasReports.userId, userId))
 
   const ws = currentWeekStart()
 
@@ -294,7 +290,7 @@ export async function loadDemoData(): Promise<
     },
   ])
 
-  logger.info("loadDemoData:done", { userId, tradesCreated: 10 })
+  logger.info("loadDemoData:done", { userId, tradesInserted: 10 })
 
   return { ok: true, data: { tradesCreated: 10 } }
 }

@@ -63,7 +63,7 @@ export default async function DashboardPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {allTrades.length < 10 && <DemoDataButton />}
+          {allTrades.length === 0 && <DemoDataButton hasTrades={false} />}
           <LogTradeModal />
         </div>
       </div>

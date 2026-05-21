@@ -7,7 +7,7 @@ import { Database } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { loadDemoData } from "./actions"
 
-export function DemoDataButton() {
+export function DemoDataButton({ hasTrades }: { hasTrades: boolean }) {
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
 
@@ -15,7 +15,7 @@ export function DemoDataButton() {
     startTransition(async () => {
       const result = await loadDemoData()
       if (result.ok) {
-        toast.success("10 demo trades loaded! Explore the dashboard.")
+        toast.success("Demo data loaded! Hit Refresh Report on the Bias Report page.")
         router.refresh()
       } else {
         toast.error(result.error)
@@ -32,7 +32,11 @@ export function DemoDataButton() {
       aria-busy={isPending}
     >
       <Database className="mr-1.5 size-3.5" />
-      {isPending ? "Loading demo data…" : "Load demo data"}
+      {isPending
+        ? "Loading…"
+        : hasTrades
+          ? "Reset demo data"
+          : "Load demo data"}
     </Button>
   )
 }
